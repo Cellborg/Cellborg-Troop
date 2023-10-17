@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+message HeatmapData {
+  repeated DataGroup data_groups = 1;
+}
+
+message DataGroup {
+  repeated double group = 1;
+  repeated DataRow data = 2;
+}
+
+message DataRow {
+  repeated double values = 1;
+}

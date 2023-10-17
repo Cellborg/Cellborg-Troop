@@ -1,0 +1,12 @@
+FROM python:3.11-slim
+
+RUN mkdir /app
+WORKDIR /app
+
+# Install necessary Python packages
+RUN pip install requests boto3
+
+COPY QCHandler.py /app/QCHandler.py
+
+# Command to run the Python script
+CMD ["python", "/app/QCHandler.py"]
