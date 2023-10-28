@@ -6,11 +6,17 @@ import os
 client = boto3.client('sqs', region_name='us-west-2')
 sns = boto3.client('sns', region_name='us-west-2')
 
-#queue_url = client.get_queue_url(QueueName='cellborgclusterplotqueue.fifo')['QueueUrl']
 queue_url = os.environ.get("SQS_QUEUE_URL")
+env = os.environ.get("ENVIRONMENT", "dev") 
+print(f"Cellborg Troop - Analysis Python container running in {env} environment")
+if env == "dev":
+    SNS_TOPIC = 'arn:aws:sns:us-west-2:865984939637:AnalysisStepCompleteTopic'
+else:
+    SNS_TOPIC = f'arn:aws:sns:us-west-2:865984939637:AnalysisStepComplete-{env}-Topic'
 
 def send_sns(data):
-    topic_arn = 'arn:aws:sns:us-west-2:865984939637:AnalysisStepCompleteTopic'
+    topic_arn = SNS_TOPIC
+    print(f'Sending {data} SNS message to {SNS_TOPIC}')
     response = sns.publish(
         TopicArn = topic_arn,
         Message = json.dumps(data),
@@ -125,7 +131,7 @@ while True:
                         "user": user, 
                         "project": project, 
                         "analysisId": analysis_id,
-                        "completed_step": "Feature_Plot",
+                        "completed_step": "FeaturePlot",
                         "gene_name": gene_name
                     }
                     response = send_sns(data)
@@ -169,6 +175,110 @@ while True:
                         "project": project, 
                         "analysisId": analysis_id,
                         "completed_step": "Psuedotime"
+                    }
+                    response = send_sns(data)
+                    print(response)
+
+            elif request_type == "dotplot" and project_initialized:
+                genes = queen_service_request["genes"]
+                print(genes)
+                dotplot_req = {
+                    "user": user, 
+                    "project": project, 
+                    "analysis": analysis_id,
+                    "genes": genes
+                }
+                response = send_request('/dotplot', dotplot_req)
+                if response.get("success"):
+                    print("Collecting dot plot data was successful... Sending SNS message")
+                    data = {
+                        "user": user, 
+                        "project": project, 
+                        "analysisId": analysis_id,
+                        "completed_step": "DotPlot"
+                    }
+                    response = send_sns(data)
+                    print(response)
+
+            
+            elif request_type == "vlnplots" and project_initialized:
+                genes = queen_service_request["genes"]
+                print(genes)
+                vlnplots_req = {
+                    "user": user, 
+                    "project": project, 
+                    "analysis": analysis_id,
+                    "genes": genes
+                }
+                response = send_request('/violinplots', vlnplots_req)
+                if response.get("success"):
+                    print("Collecting violin plot data was successful... Sending SNS message")
+                    data = {
+                        "user": user, 
+                        "project": project, 
+                        "analysisId": analysis_id,
+                        "completed_step": "ViolinPlot"
+                    }
+                    response = send_sns(data)
+                    print(response)
+            
+            elif request_type == "annotations" and project_initialized:
+                annotations = queen_service_request["annotations"]
+                print(annotations)
+                annotations_req = {
+                    "annotations": annotations
+                }
+                response = send_request('/annotations', annotations_req)
+                if response.get("success"):
+                    print("Annotating the data was successful... Sending SNS message")
+                    data = {
+                        "user": user, 
+                        "project": project, 
+                        "analysisId": analysis_id,
+                        "completed_step": "Annotations"
+                    }
+                    response = send_sns(data)
+                    print(response)
+
+            elif request_type == "allMarkers" and project_initialized:
+
+                allMarkers_req = {
+                    "user": user, 
+                    "project": project, 
+                    "analysis": analysis_id
+                }
+                response = send_request('/allMarkers', allMarkers_req)
+                if response.get("success"):
+                    print("Gathered all markers data... Sending SNS message")
+                    data = {
+                        "user": user, 
+                        "project": project, 
+                        "analysisId": analysis_id,
+                        "completed_step": "allMarkers"
+                    }
+                    response = send_sns(data)
+                    print(response)
+
+            elif request_type == "findMarkers" and project_initialized:
+                cluster1 = queen_service_request["cluster1"]
+                cluster2 = queen_service_request["cluster2"]
+                print(cluster1)
+                print(cluster2)
+                findMarkers_req = {
+                    "user": user, 
+                    "project": project, 
+                    "analysis": analysis_id,
+                    "cluster1": cluster1,
+                    "cluster2": cluster2
+                }
+                response = send_request('/findMarkers', findMarkers_req)
+                if response.get("success"):
+                    print("Gathered find markers data... Sending SNS message")
+                    data = {
+                        "user": user, 
+                        "project": project, 
+                        "analysisId": analysis_id,
+                        "completed_step": "findMarkers"
                     }
                     response = send_sns(data)
                     print(response)

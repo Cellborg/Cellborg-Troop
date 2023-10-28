@@ -1,14 +1,12 @@
 syntax = "proto3";
 
 message HeatmapData {
-  repeated DataGroup data_groups = 1;
-}
-
-message DataGroup {
-  repeated double group = 1;
-  repeated DataRow data = 2;
+    repeated string featureNames = 1; // gene names
+    repeated DataRow dataRows = 2; // Expression data for each cell
 }
 
 message DataRow {
-  repeated double values = 1;
+    string cellBarcode = 1; // Cell barcode
+    repeated double values = 2; // Expression values for each gene
+    string cluster = 3; // cluster
 }

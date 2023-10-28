@@ -6,15 +6,21 @@ library(DoubletFinder)
 library(aws.s3)
 
 user_environment <- new.env()
-Sys.setenv("AWS_ACCESS_KEY_ID" = "AKIA4TIFZQZ254WVY4YO",
-           "AWS_SECRET_ACCESS_KEY" = "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",
-           "AWS_DEFAULT_REGION" = "us-west-2")
+environment <- Sys.getenv("ENVIRONMENT")
+if (environment == "") {
+  environment <- "dev"
+}
+message("Cellborg QCProcessing R container running in environment: ", environment)
 
-user_environment$dataset_bucket <- "cellborgdatasetuploadbucket"
-user_environment$qc_dataset_bucket <- "cellborgqcdatasetbucket"
-user_environment$var_feature_bucket <- "cellborgvariablefeaturebucket"
-user_environment$qc_bucket <- "cellborgqualitycontrolbucket"
-user_environment$var_feature_bucket <- "cellborgvariablefeaturebucket"
+if (environment == "dev") {
+  DATASET_BUCKET <- "cellborgdatasetuploadbucket"
+  QC_DATASET_BUCKET <- "cellborgqcdatasetbucket"
+} else {
+  DATASET_BUCKET <- paste0("cellborg-", environment, "-datasetupload-bucket")
+  QC_DATASET_BUCKET <- paste0("cellborg-", environment, "-qcdataset-bucket")
+}
+user_environment$dataset_bucket <- DATASET_BUCKET
+user_environment$qc_dataset_bucket <- QC_DATASET_BUCKET
 
 perform_qc <- function(user, project, dataset, min, max, mt) {
 
@@ -101,6 +107,9 @@ perform_qc <- function(user, project, dataset, min, max, mt) {
   data <- FindNeighbors(data, dims = 1:10)
   data <- FindClusters(data, resolution = 0.5)
   data <- RunUMAP(data, dims = 1:10)
+  gene_count <- dim(data)[1]
+  cell_count <- dim(data)[2]
+
   message("Preprocessing complete")
 
   message("Performing pK identification")
@@ -158,6 +167,8 @@ perform_qc <- function(user, project, dataset, min, max, mt) {
   message("Uploaded QC processed dataset to S3")
   unlink(tmp_file)
   message("COMPLETE")
+  return_list <- list("cell_count" = cell_count, "gene_count" = gene_count)
+  return(return_list)
 }
 
 variable_feature_data <- function(
@@ -208,10 +219,17 @@ function(req, res) {
   max <- req_data$max 
   mt <- req_data$mt
   message("Performing QC...")
-  perform_qc(user, project, dataset, min, max, mt)
+  return_data <- perform_qc(user, project, dataset, min, max, mt)
+  cell_count <- return_data$cell_count
+  gene_count <- return_data$gene_count
   message("Successfully performed QC on the dataset")
   res$status <- 200
-  return(list(success = TRUE, message = "QC Completed Successfully"))
+  return(list(
+    success = TRUE,
+    message = "QC Completed Successfully",
+    cell_count = cell_count,
+    gene_count = gene_count
+  ))
 }
 
 #* @post /shutdown

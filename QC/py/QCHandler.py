@@ -5,12 +5,17 @@ import os
 
 client = boto3.client('sqs', region_name='us-west-2')
 sns = boto3.client('sns', region_name='us-west-2')
-
-#queue_url = client.get_queue_url(QueueName='cellborg_qc_queue.fifo')['QueueUrl']
 queue_url = os.environ.get("SQS_QUEUE_URL")
+env = os.environ.get("ENVIRONMENT", "dev") 
+print(f"Cellborg Troop - QC Python container running in {env} environment")
+if env == "dev":
+    SNS_TOPIC = 'arn:aws:sns:us-west-2:865984939637:QCCompleteTopic'
+else:
+    SNS_TOPIC = f'arn:aws:sns:us-west-2:865984939637:QCComplete-{env}-Topic'
 
 def send_sns(data):
-    topic_arn = 'arn:aws:sns:us-west-2:865984939637:QCCompleteTopic'
+    topic_arn = SNS_TOPIC
+    print(f'Sending {data} SNS message to {SNS_TOPIC}')
     response = sns.publish(
         TopicArn = topic_arn,
         Message = json.dumps(data),
@@ -67,12 +72,16 @@ while True:
                 response = send_request('/qc_endpoint', qc_request)
                 if response.get("success"):
                     print("QC Successful... Sending SNS message to clear dataset as completed...")
+                    cell_count = response.get("cell_count")
+                    gene_count = response.get("gene_count")
                     # Send SNS message
                     data = {
                         "user": user, 
                         "project": project, 
                         "dataset": dataset,
-                        "complete": True
+                        "complete": True,
+                        "cell_count": cell_count,
+                        "gene_count": gene_count
                     } 
                     response = send_sns(data)
                     print(response)

@@ -12,17 +12,48 @@ user_environment <- new.env()
 Sys.setenv("AWS_ACCESS_KEY_ID" = "AKIA4TIFZQZ254WVY4YO",
            "AWS_SECRET_ACCESS_KEY" = "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",
            "AWS_DEFAULT_REGION" = "us-west-2")
+environment <- Sys.getenv("ENVIRONMENT")
+if (environment == "") {
+  environment <- "dev"
+}
+message("Cellborg Queen R container running in environment: ", environment)
 
-user_environment$dataset_bucket <- "cellborgdatasetuploadbucket"
-user_environment$cluster_bucket <- "cellborgdatasetclusterplotbucket"
-user_environment$qc_bucket <- "cellborgqualitycontrolbucket"
-user_environment$var_feature_bucket <- "cellborgvariablefeaturebucket"
-user_environment$feature_plot_bucket <- "cellborggenefeatureplotbucket"
-user_environment$gene_names_bucket <- "cellborgprojectgenenamesbucket"
-user_environment$qc_dataset_bucket <- "cellborgqcdatasetbucket"
-user_environment$pca_bucket <- "cellborgpcabucket"
-user_environment$heatmap_bucket <- "cellborgheatmapbucket"
-user_environment$psuedotime_bucket <- "cellborgpsuedotimebucket"
+if (environment == "dev") {
+  DATASET_BUCKET <- "cellborgdatasetuploadbucket"
+  QC_DATASET_BUCKET <- "cellborgqcdatasetbucket"
+  VAR_FEAT_BUCKET <- "cellborgvariablefeaturebucket"
+  CLUSTER_BUCKET <- "cellborgdatasetclusterplotbucket"
+  FEATURE_PLOT_BUCKET <- "cellborggenefeatureplotbucket"
+  GENE_NAMES_BUCKET <- "cellborgprojectgenenamesbucket"
+  PCA_BUCKET <- "cellborgpcabucket"
+  HEATMAP_BUCKET <- "cellborgheatmapbucket"
+  PSUEDOTIME_BUCKET <- "cellborgpsuedotimebucket"
+  DOTPLOT_BUCKET <- "cellborgdotplotbucket"
+  VLNPLOTS_BUCKET <- "cellborgviolinplotsbucket"
+} else {
+  DATASET_BUCKET <- paste0("cellborg-", environment, "-datasetupload-bucket")
+  QC_DATASET_BUCKET <- paste0("cellborg-", environment, "-qcdataset-bucket")
+  VAR_FEAT_BUCKET <- paste0("cellborg-", environment, "-variablefeature-bucket")
+  CLUSTER_BUCKET <- paste0("cellborg-", environment, "-datasetclusterplot-bucket")
+  FEATURE_PLOT_BUCKET <- paste0("cellborg-", environment, "-genefeatureplot-bucket")
+  GENE_NAMES_BUCKET <- paste0("cellborg-", environment, "-projectgenenames-bucket")
+  PCA_BUCKET <- paste0("cellborg-", environment, "-pca-bucket")
+  HEATMAP_BUCKET <- paste0("cellborg-", environment, "-heatmap-bucket")
+  PSUEDOTIME_BUCKET <- paste0("cellborg-", environment, "-psuedotime-bucket")
+  DOTPLOT_BUCKET <- paste0("cellborg-", environment, "-dotplot-bucket")
+  VLNPLOTS_BUCKET <- paste0("cellborg-", environment, "-violinplots-bucket")
+}
+user_environment$dataset_bucket <- DATASET_BUCKET
+user_environment$qc_dataset_bucket <- QC_DATASET_BUCKET
+user_environment$var_feature_bucket <- VAR_FEAT_BUCKET
+user_environment$cluster_bucket <- CLUSTER_BUCKET
+user_environment$feature_plot_bucket <- FEATURE_PLOT_BUCKET
+user_environment$gene_names_bucket <- GENE_NAMES_BUCKET
+user_environment$pca_bucket <- PCA_BUCKET
+user_environment$heatmap_bucket <- HEATMAP_BUCKET
+user_environment$psuedotime_bucket <- PSUEDOTIME_BUCKET
+user_environment$dotplot_bucket <- DOTPLOT_BUCKET
+user_environment$vlnplots_bucket <- VLNPLOTS_BUCKET
 
 init_dataset_seurat_object <- function(user, project, datasets, analysis) {
 
@@ -179,21 +210,25 @@ perform_clustering <- function(
 
   ### Extracting plotting data from processed Seurat object
   results <- data[[cluster_reduction]]
+  cluster_cells <- as.numeric(table(data$seurat_clusters))
 
   # Extract cell coordinates (first two dimensions for a 2D plot)
   cell_coordinates <- results@cell.embeddings[, 1:2]
   cell_metadata <- data@meta.data
   cluster_assignments <- cell_metadata$seurat_clusters
-  data_for_json <- data.frame(
-    cluster = as.character(cluster_assignments),
+  num_clusters <- length(unique(cluster_assignments))
+
+  data_for_json <- list(
+    total_clusters = num_clusters,
+    clusterCounts = cluster_cells,
+    cluster = as.numeric(cluster_assignments),
     X = cell_coordinates[, 1],
     Y = cell_coordinates[, 2]
   )
-  json_data <- jsonlite::toJSON(data_for_json, dataframe = "columns")
 
   ### UPLOAD JSON TO S3
   temp_file <- tempfile(fileext = ".json")
-  write(json_data, temp_file)
+  jsonlite::write_json(data_for_json, temp_file)
 
   put_object(
     file = temp_file,
@@ -932,17 +967,25 @@ getGeneNamesAndUploadToS3 <- function(data, user, project, analysis) { # nolint
   file.remove(json_file)
 }
 
-DooHeatmap <- function(object, features = NULL, cells = NULL, group.by = 'ident', 
-                          slot = 'scale.data', assay = NULL) {
-  heatmap_data <- list()
-
+DoTheHeatmap <- function(
+  object,
+  features = NULL,
+  cells = NULL,
+  group.by = 'ident',
+  slot = 'scale.data',
+  assay = NULL
+) {
   cells <- cells %||% colnames(x = object)
+  if (is.numeric(x = cells)) {
+    cells <- colnames(x = object)[cells]
+  }
+  
   assay <- assay %||% DefaultAssay(object = object)
   DefaultAssay(object = object) <- assay
   features <- features %||% VariableFeatures(object = object)
   features <- rev(x = unique(x = features))
-
-  # Ensure features are present
+  
+  # make sure features are present
   possible.features <- rownames(x = GetAssayData(object = object, slot = slot))
   if (any(!features %in% possible.features)) {
     bad.features <- features[!features %in% possible.features]
@@ -953,53 +996,366 @@ DooHeatmap <- function(object, features = NULL, cells = NULL, group.by = 'ident'
     warning("The following features were omitted as they were not found in the ", slot,
             " slot for the ", assay, " assay: ", paste(bad.features, collapse = ", "))
   }
-
+  
   data <- as.data.frame(x = as.matrix(x = t(x = GetAssayData(
     object = object,
     slot = slot)[features, cells, drop = FALSE])))
-
   object <- suppressMessages(expr = StashIdent(object = object, save.name = 'ident'))
   group.by <- group.by %||% 'ident'
   groups.use <- object[[group.by]][cells, , drop = FALSE]
+  data$Cluster <- groups.use
 
-  for (i in 1:ncol(x = groups.use)) {
-    data.group <- data
-    group.use <- groups.use[, i, drop = TRUE]
+  heatmap_data_list <- list(
+    heatmapValues = data
+  )
+  return(heatmap_data_list)
+}
 
-    if (!is.factor(x = group.use)) {
-      group.use <- factor(x = group.use)
+DotPlotData <- function(
+  object,
+  assay = NULL,
+  features,
+  cols = c("lightgrey", "blue"),
+  col.min = -2.5,
+  col.max = 2.5,
+  dot.min = 0,
+  dot.scale = 6,
+  idents = NULL,
+  group.by = NULL,
+  split.by = NULL,
+  cluster.idents = FALSE,
+  scale = TRUE,
+  scale.by = 'radius',
+  scale.min = NA,
+  scale.max = NA
+) {
+  assay <- assay %||% DefaultAssay(object = object)
+  DefaultAssay(object = object) <- assay
+  split.colors <- !is.null(x = split.by) && !any(cols %in% rownames(x = brewer.pal.info))
+  feature.groups <- NULL
+  if (is.list(features) | any(!is.na(names(features)))) {
+    feature.groups <- unlist(x = sapply(
+      X = 1:length(features),
+      FUN = function(x) {
+        return(rep(x = names(x = features)[x], each = length(features[[x]])))
+      }
+    ))
+    if (any(is.na(x = feature.groups))) {
+      warning(
+        "Some feature groups are unnamed.",
+        call. = FALSE,
+        immediate. = TRUE
+      )
     }
+    features <- unlist(x = features)
+    names(x = feature.groups) <- features
+  }
+  cells <- unlist(x = CellsByIdentities(object = object, idents = idents))
 
-    names(x = group.use) <- cells
-
-    heatmap_data[[i]] <- list(
-      data_group = data.group,
-      group = group.use
+  data.features <- FetchData(object = object, vars = features, cells = cells)
+  data.features$id <- if (is.null(x = group.by)) {
+    Idents(object = object)[cells, drop = TRUE]
+  } else {
+    object[[group.by, drop = TRUE]][cells, drop = TRUE]
+  }
+  if (!is.factor(x = data.features$id)) {
+    data.features$id <- factor(x = data.features$id)
+  }
+  id.levels <- levels(x = data.features$id)
+  data.features$id <- as.vector(x = data.features$id)
+  if (!is.null(x = split.by)) {
+    splits <- object[[split.by, drop = TRUE]][cells, drop = TRUE]
+    if (split.colors) {
+      if (length(x = unique(x = splits)) > length(x = cols)) {
+        stop("Not enough colors for the number of groups")
+      }
+      cols <- cols[1:length(x = unique(x = splits))]
+      names(x = cols) <- unique(x = splits)
+    }
+    data.features$id <- paste(data.features$id, splits, sep = '_')
+    unique.splits <- unique(x = splits)
+    id.levels <- paste0(rep(x = id.levels, each = length(x = unique.splits)), "_", rep(x = unique(x = splits), times = length(x = id.levels)))
+  }
+  data.plot <- lapply(
+    X = unique(x = data.features$id),
+    FUN = function(ident) {
+      data.use <- data.features[data.features$id == ident, 1:(ncol(x = data.features) - 1), drop = FALSE]
+      avg.exp <- apply(
+        X = data.use,
+        MARGIN = 2,
+        FUN = function(x) {
+          return(mean(x = expm1(x = x)))
+        }
+      )
+      pct.exp <- apply(X = data.use, MARGIN = 2, FUN = PercentAbove, threshold = 0)
+      return(list(avg.exp = avg.exp, pct.exp = pct.exp))
+    }
+  )
+  names(x = data.plot) <- unique(x = data.features$id)
+  if (cluster.idents) {
+    mat <- do.call(
+      what = rbind,
+      args = lapply(X = data.plot, FUN = unlist)
+    )
+    mat <- scale(x = mat)
+    id.levels <- id.levels[hclust(d = dist(x = mat))$order]
+  }
+  data.plot <- lapply(
+    X = names(x = data.plot),
+    FUN = function(x) {
+      data.use <- as.data.frame(x = data.plot[[x]])
+      data.use$features.plot <- rownames(x = data.use)
+      data.use$id <- x
+      return(data.use)
+    }
+  )
+  data.plot <- do.call(what = 'rbind', args = data.plot)
+  if (!is.null(x = id.levels)) {
+    data.plot$id <- factor(x = data.plot$id, levels = id.levels)
+  }
+  ngroup <- length(x = levels(x = data.plot$id))
+  if (ngroup == 1) {
+    scale <- FALSE
+    warning(
+      "Only one identity present, the expression values will be not scaled",
+      call. = FALSE,
+      immediate. = TRUE
+    )
+  } else if (ngroup < 5 & scale) {
+    warning(
+      "Scaling data with a low number of groups may produce misleading results",
+      call. = FALSE,
+      immediate. = TRUE
     )
   }
-  return(heatmap_data)
+  avg.exp.scaled <- sapply(
+    X = unique(x = data.plot$features.plot),
+    FUN = function(x) {
+      data.use <- data.plot[data.plot$features.plot == x, 'avg.exp']
+      if (scale) {
+        data.use <- scale(x = data.use)
+        data.use <- MinMax(data = data.use, min = col.min, max = col.max)
+      } else {
+        data.use <- log1p(x = data.use)
+      }
+      return(data.use)
+    }
+  )
+  avg.exp.scaled <- as.vector(x = t(x = avg.exp.scaled))
+  if (split.colors) {
+    avg.exp.scaled <- as.numeric(x = cut(x = avg.exp.scaled, breaks = 20))
+  }
+  data.plot$avg.exp.scaled <- avg.exp.scaled
+  data.plot$features.plot <- factor(
+    x = data.plot$features.plot,
+    levels = features
+  )
+  data.plot$pct.exp[data.plot$pct.exp < dot.min] <- NA
+  data.plot$pct.exp <- data.plot$pct.exp * 100
+  if (split.colors) {
+    splits.use <- vapply(
+      X = as.character(x = data.plot$id),
+      FUN = gsub,
+      FUN.VALUE = character(length = 1L),
+      pattern =  paste0(
+        '^((',
+        paste(sort(x = levels(x = object), decreasing = TRUE), collapse = '|'),
+        ')_)'
+      ),
+      replacement = '',
+      USE.NAMES = FALSE
+    )
+    data.plot$colors <- mapply(
+      FUN = function(color, value) {
+        return(colorRampPalette(colors = c('grey', color))(20)[value])
+      },
+      color = cols[splits.use],
+      value = avg.exp.scaled
+    )
+  }
+  if (!is.na(x = scale.min)) {
+    data.plot[data.plot$pct.exp < scale.min, 'pct.exp'] <- scale.min
+  }
+  if (!is.na(x = scale.max)) {
+    data.plot[data.plot$pct.exp > scale.max, 'pct.exp'] <- scale.max
+  }
+  if (!is.null(x = feature.groups)) {
+    data.plot$feature.groups <- factor(
+      x = feature.groups[data.plot$features.plot],
+      levels = unique(x = feature.groups)
+    )
+  }
+  return(data.plot)
+}
+
+ExIPlot <- function(
+  object,
+  features,
+  type = 'violin',
+  idents = NULL,
+  ncol = NULL,
+  sort = FALSE,
+  assay = NULL,
+  y.max = NULL,
+  same.y.lims = FALSE,
+  adjust = 1,
+  cols = NULL,
+  pt.size = 0,
+  group.by = NULL,
+  split.by = NULL,
+  log = FALSE,
+  slot = 'data',
+  stack = FALSE,
+  combine = TRUE,
+  fill.by = NULL,
+  flip = FALSE,
+  add.noise = TRUE,
+  raster = NULL
+) {
+  assay <- assay %||% DefaultAssay(object = object)
+  DefaultAssay(object = object) <- assay
+  if (isTRUE(x = stack)) {
+    if (!is.null(x = ncol)) {
+      warning(
+        "'ncol' is ignored with 'stack' is TRUE",
+        call. = FALSE,
+        immediate. = TRUE
+      )
+    }
+    if (!is.null(x = y.max)) {
+      warning(
+        "'y.max' is ignored when 'stack' is TRUE",
+        call. = FALSE,
+        immediate. = TRUE
+      )
+    }
+  } else {
+    ncol <- ncol %||% ifelse(
+      test = length(x = features) > 9,
+      yes = 4,
+      no = min(length(x = features), 3)
+    )
+  }
+  data <- FetchData(object = object, vars = features, slot = slot)
+  pt.size <- pt.size %||% AutoPointSize(data = object)
+  features <- colnames(x = data)
+  if (is.null(x = idents)) {
+    cells <- colnames(x = object)
+  } else {
+    cells <- names(x = Idents(object = object)[Idents(object = object) %in% idents])
+  }
+  data <- data[cells, , drop = FALSE]
+  idents <- if (is.null(x = group.by)) {
+    Idents(object = object)[cells]
+  } else {
+    object[[group.by, drop = TRUE]][cells]
+  }
+  if (!is.factor(x = idents)) {
+    idents <- factor(x = idents)
+  }
+  if (is.null(x = split.by)) {
+    split <- NULL
+  } else {
+    split <- object[[split.by, drop = TRUE]][cells]
+    if (!is.factor(x = split)) {
+      split <- factor(x = split)
+    }
+    if (is.null(x = cols)) {
+      cols <- hue_pal()(length(x = levels(x = idents)))
+      cols <- Interleave(cols, InvertHex(hexadecimal = cols))
+    } else if (length(x = cols) == 1 && cols == 'interaction') {
+      split <- interaction(idents, split)
+      cols <- hue_pal()(length(x = levels(x = idents)))
+    } else {
+      cols <- Col2Hex(cols)
+    }
+    if (length(x = cols) < length(x = levels(x = split))) {
+      cols <- Interleave(cols, InvertHex(hexadecimal = cols))
+    }
+    cols <- rep_len(x = cols, length.out = length(x = levels(x = split)))
+    names(x = cols) <- levels(x = split)
+    if ((length(x = cols) > 2) & (type == "splitViolin")) {
+      warning("Split violin is only supported for <3 groups, using multi-violin.")
+      type <- "violin"
+    }
+  }
+  if (same.y.lims && is.null(x = y.max)) {
+    y.max <- max(data)
+  }
+  if (isTRUE(x = stack)) {
+    message("WHHHHHHHHHHHHHHHHHHHHAST 1111111111111111")
+    return(MultiExIPlot(
+      type = type,
+      data = data,
+      idents = idents,
+      split = split,
+      sort = sort,
+      same.y.lims = same.y.lims,
+      adjust = adjust,
+      cols = cols,
+      pt.size = pt.size,
+      log = log,
+      fill.by = fill.by,
+      add.noise = add.noise,
+      flip = flip
+    ))
+  }
+
+  # Return the updated data
+  return(list(data = data, idents = idents))
+}
+
+uploadDotPlotDataToS3 <- function(data, user, project, analysis, genes) {
+  gene_features <- jsonlite::fromJSON(genes)
+  message("getting dot plot data for: ", gene_features)
+  dotplot_data <- DotPlotData(object = data, features = gene_features)
+  json_file <- tempfile(fileext = ".json")
+  jsonlite::write_json(dotplot_data, json_file)
+  s3_key <- paste0(user, "/", project, "/", analysis, "/dotplot.json")
+  message(s3_key)
+  message("Uploading dot plot data to s3")
+  put_object(
+    file = json_file,
+    object = s3_key,
+    bucket = user_environment$dotplot_bucket
+  )
+  message("upload to S3 completed")
+  file.remove(json_file)
+}
+
+uploadViolinPlotDataToS3 <- function(data, user, project, analysis, genes) {
+  gene_features <- jsonlite::fromJSON(genes)
+  message("getting violin plot data for: ", gene_features)
+  vln_plots <- ExIPlot(object = data, features = gene_features)
+  idents_vector <- unlist(vln_plots$idents)
+  vln_plots$data$cluster_id <- idents_vector[rownames(vln_plots$data)]
+  json_file <- tempfile(fileext = ".json")
+  jsonlite::write_json(vln_plots$data, json_file)
+  s3_key <- paste0(user, "/", project, "/", analysis, "/vlnplots.json")
+  message(s3_key)
+  message("Uploading violin plot data to s3")
+  put_object(
+    file = json_file,
+    object = s3_key,
+    bucket = user_environment$vlnplots_bucket
+  )
+  message("upload to S3 completed")
+  file.remove(json_file)
 }
 
 gatherHeatmapDataAndUploadToS3 <- function(data, user, project, analysis, gene_names) {
   gene_features <- jsonlite::fromJSON(gene_names)
-  heatmap_data <- DooHeatmap(data, features = gene_features)
+  heatmap_data <- DoTheHeatmap(data, features = gene_features)
   readProtoFiles("/app/heatmap.proto")
   heatmap_proto <- new(HeatmapData)
-  num_groups <- length(heatmap_data)
-  data_groups_proto <- vector("list", num_groups)
-
-  for (i in seq_along(heatmap_data)) {
-    data_group_proto <- new(DataGroup)
-    num_rows <- nrow(heatmap_data[[i]]$data_group)
-    data_rows_proto <- vector("list", num_rows)
-    
-    # Use lapply for vectorized operation
-    data_rows_proto <- lapply(heatmap_data[[i]]$data_group, function(row) new(DataRow, values=as.numeric(row)))
-    data_group_proto$data <- data_rows_proto
-    data_group_proto$group <- heatmap_data[[i]]$group
-    data_groups_proto[[i]] <- data_group_proto
+  heatmap_proto$featureNames <- colnames(heatmap_data[[1]])[-ncol(heatmap_data[[1]])]
+  for (i in 1:nrow(heatmap_data[[1]])) {
+    row <- new(DataRow)
+    row$cellBarcode <- rownames(heatmap_data[[1]])[i]
+    row$values <- as.numeric(heatmap_data[[1]][i, -ncol(heatmap_data[[1]])]) # Exclude the "ident" column
+    row$cluster <- as.character(heatmap_data[[1]][i, ncol(heatmap_data[[1]])])
+    heatmap_proto$dataRows[i] <- row
   }
-  heatmap_proto$data_groups <- data_groups_proto
   temp <- tempfile()
   s3key <- paste0(user, "/", project, "/", analysis, "/", "heatmap_data.bin")
   writeBin(RProtoBuf::serialize(heatmap_proto, NULL), temp)
@@ -1171,6 +1527,53 @@ uploadPsuedotimePlotDataToS3 <- function(data, user, project, analysis, points) 
                                 analysis = analysis)
 }
 
+annotateSueratObjectClusters <- function(data, annotations) {
+  rename_list <- jsonlite::fromJSON(annotations, simplifyVector = FALSE)
+  args <- c(list(object = data), rename_list)
+
+  message("Annotating the clusters: ", rename_list)
+  renamed_data <- do.call(Seurat::RenameIdents, args)
+  user_environment$cluster_object <- renamed_data  
+  user_environment$scaled_object <- renamed_data           
+  message("Annotated and updated seurat objects")
+}
+
+getAllMarkersDataAndUploadToS3 <- function(data, user, project, analysis) {
+  message("Running find all markers..")
+  markers <- FindAllMarkers(data)
+  message("All Markers found")
+  temp <- tempfile(fileext = ".csv")
+  s3key <- paste0(user, "/", project, "/", analysis, "/", "allMarkersData.csv")
+  write.csv(markers, temp)
+  message("Uploading to S3: ", s3key)
+
+  put_object(
+    file = temp,
+    object = s3key,
+    bucket = user_environment$heatmap_bucket
+  )
+  message("Uploaded all markers to S3")
+  file.remove(temp)
+}
+
+getFindMarkersDataAndUploadToS3 <- function(data, user, project, analysis, cluster1, cluster2) {
+  message("Running find markers..", cluster1, cluster2)
+  markers <- FindMarkers(data, ident.1 = cluster1, ident.2 = cluster2)
+  message("Markers were found")
+  temp <- tempfile(fileext = ".csv")
+  s3key <- paste0(user, "/", project, "/", analysis, "/", "findMarkersData.csv")
+  write.csv(markers, temp)
+  message("Uploading to S3: ", s3key)
+
+  put_object(
+    file = temp,
+    object = s3key,
+    bucket = user_environment$heatmap_bucket
+  )
+  message("Uploaded found markers to S3")
+  file.remove(temp)
+}
+
 #* @post /init_endpoint
 #* @parser json
 function(req, res) {
@@ -1276,6 +1679,83 @@ function(req, res) {
   message("Successfully processed the heatmap.")
   res$status <- 200
   return(list(success = TRUE, message = "Processed the gene feature plot successfully"))
+}
+
+#* @post /dotplot
+#* @parser json
+function(req, res) {
+  dotplot_data <- req$body
+  uploadDotPlotDataToS3(
+    user_environment$cluster_object,
+    dotplot_data$user,
+    dotplot_data$project,
+    dotplot_data$analysis,
+    dotplot_data$genes
+  )
+  message("Successfully uploaded the dot plot data.")
+  res$status <- 200
+  return(list(success = TRUE, message = "Gathered dot plots successfully"))
+}
+
+#* @post /violinplots
+#* @parser json
+function(req, res) {
+  violin_data <- req$body
+  uploadViolinPlotDataToS3(
+    user_environment$cluster_object,
+    violin_data$user,
+    violin_data$project,
+    violin_data$analysis,
+    violin_data$genes
+  )
+  message("Successfully uploaded the violin plot data.")
+  res$status <- 200
+  return(list(success = TRUE, message = "Gathered violin plots successfully"))
+}
+
+#* @post /annotations
+#* @parser json
+function(req, res) {
+  annotations_data <- req$body
+  message("Annotating the Seurat object clusters: ", annotations_data$annotations)
+  annotateSueratObjectClusters(
+    user_environment$cluster_object,
+    annotations_data$annotations
+  )
+  message("Successfully annotated the Suerat clusters.")
+  res$status <- 200
+  return(list(success = TRUE, message = "Performed annotations successfully"))
+}
+#* @post /allMarkers
+#* @parser json
+function(req, res) {
+  allMarkers_data <- req$body
+  getAllMarkersDataAndUploadToS3(
+    user_environment$cluster_object,
+    allMarkers_data$user,
+    allMarkers_data$project,
+    allMarkers_data$analysis
+  )
+  message("Successfully uploaded the all markers data.")
+  res$status <- 200
+  return(list(success = TRUE, message = "Gathered all markers data successfully"))
+}
+
+#* @post /findMarkers
+#* @parser json
+function(req, res) {
+  findMarkers_data <- req$body
+  getFindMarkersDataAndUploadToS3(
+    user_environment$cluster_object,
+    findMarkers_data$user,
+    findMarkers_data$project,
+    findMarkers_data$analysis,
+    findMarkers_data$cluster1,
+    findMarkers_data$cluster2
+  )
+  message("Successfully uploaded the find markers data.")
+  res$status <- 200
+  return(list(success = TRUE, message = "Gathered find markers data successfully"))
 }
 
 #* @post /shutdown
