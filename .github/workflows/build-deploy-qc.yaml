@@ -40,7 +40,7 @@ jobs:
         REPOSITORY: cellborg-beta-qc_r
         IMAGE_TAG: 'latest'
       run: |
-        cd QC
+        cd QC/r
         docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
         docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
     - name: Build, Tag, and Push the QC/py
@@ -50,7 +50,7 @@ jobs:
         REPOSITORY: cellborg-beta-qc_py
         IMAGE_TAG: 'latest'
       run: |
-        cd QC
+        cd QC/py
         docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
         docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG        
     
