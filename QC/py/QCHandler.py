@@ -39,6 +39,7 @@ def send_shutdown_request():
 while True:
     
     response = client.receive_message(QueueUrl=queue_url, MaxNumberOfMessages=10, WaitTimeSeconds=10, VisibilityTimeout=900)
+    print("queueurl=",queue_url)
     print(response)
     if 'Messages' not in response:
         print("No Message")
