@@ -42,7 +42,7 @@ while True:
     print("queueurl=",queue_url)
     print(response)
     if 'Messages' not in response:
-        print("No Message")
+        print("No Message in ",queue_url, "topic:",SNS_TOPIC)
         continue
 
     for message in response['Messages']:
