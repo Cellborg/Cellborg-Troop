@@ -32,7 +32,16 @@ jobs:
       uses: aws-actions/amazon-ecr-login@v1
       with:
         mask-password: 'true'
-
+    - name: Build, Tag, and Push the QC/py
+      id: build-qc-py
+      env:
+        REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        REPOSITORY: cellborg-beta-qc_py
+        IMAGE_TAG: 'latest'
+      run: |
+        cd QC/py
+        docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
+        docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG      
     - name: Build, Tag, and Push the QC/r
       id: build-qc-r
       env:
@@ -43,14 +52,5 @@ jobs:
         cd QC/r
         docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
         docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
-    - name: Build, Tag, and Push the QC/py
-      id: build-qc-py
-      env:
-        REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        REPOSITORY: cellborg-beta-qc_py
-        IMAGE_TAG: 'latest'
-      run: |
-        cd QC/py
-        docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
-        docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG        
+  
     
