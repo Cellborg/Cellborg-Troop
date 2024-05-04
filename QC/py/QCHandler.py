@@ -69,7 +69,7 @@ while True:
                     "max": subset_max,
                     "mt": subset_mt
                 }            
-                print("Sending QC request...")
+                print("Sending QC request...",qc_request)
                 response = send_request('/qc_endpoint', qc_request)
                 if response.get("success"):
                     print("QC Successful... Sending SNS message to clear dataset as completed...")

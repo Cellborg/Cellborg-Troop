@@ -113,7 +113,7 @@ perform_qc <- function(user, project, dataset, min, max, mt) {
   message("Preprocessing complete")
 
   message("Performing pK identification")
-  sweep.res.young <- paramSweep_v3(data, PCs = 1:10, sct = FALSE)
+  sweep.res.young <- paramSweep(data, PCs = 1:10, sct = FALSE)
   sweep.stats_young <- summarizeSweep(sweep.res.young, GT = FALSE)
   bcmvn_young <- find.pK(sweep.stats_young)
   attributes(bcmvn_young)
@@ -127,7 +127,7 @@ perform_qc <- function(user, project, dataset, min, max, mt) {
   homotypic.prop <- modelHomotypic(annotations)
   nExp_poi <- round(doubletrate*nrow(data@meta.data))
   nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
-  all_singlets <- doubletFinder_v3(data, PCs = 1:10, pN = 0.25, pK = result, nExp = nExp_poi, reuse.pANN = FALSE, sct = FALSE) # nolint: line_length_linter.
+  all_singlets <- doubletFinder(data, PCs = 1:10, pN = 0.25, pK = result, nExp = nExp_poi, reuse.pANN = FALSE, sct = FALSE) # nolint: line_length_linter.
   column <- grep(paste0("^","DF.classifications"), colnames(all_singlets@meta.data), value = TRUE) # nolint
   Idents(object = all_singlets) <- column
 
