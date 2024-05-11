@@ -39,7 +39,7 @@ RUN R -e "BiocManager::install(version = '3.17')"
 RUN R -e "BiocManager::install(c('BiocGenerics', 'DelayedArray', 'DelayedMatrixStats', 'limma', 'lme4', 'S4Vectors', 'SingleCellExperiment', 'SummarizedExperiment', 'batchelor', 'HDF5Array', 'terra', 'ggrastr'))"
 RUN install2.r --error \
     remotes 
-RUN R -e "remotes::install_github('satijalab/seurat-wrappers')"
+RUN R -e "remotes::install_github('satijalab/seurat-wrappers@582039dfe29c6f1746599e7380023370cd6dd99d')"
 RUN apt-get update && apt-get install -y \
     libudunits2-dev \
     libfontconfig1-dev \
