@@ -46,6 +46,7 @@ perform_qc <- function(user, project, dataset, min, max, mt) {
     message(file_name)
     save_object(object = file$Key, bucket = user_environment$dataset_bucket,
                 file = file.path(temp_dir, file_name))
+    gc()
   }
   
   data <- Read10X(data.dir = temp_dir)
@@ -113,22 +114,26 @@ perform_qc <- function(user, project, dataset, min, max, mt) {
   )
   message("Uploaded var feature plot data to S3")
   file.remove(json_file)
-
+  rm(data,json_data,plot_data)
   # Perform garbage collection explicitly
   message("performing GC..")
   gc()  # Trigger garbage collection
   
   all.genes <- rownames(data)
-  data <- ScaleData(data, features = all.genes)
-  data <- RunPCA(data, features = VariableFeatures(object = data))
-  data <- FindNeighbors(data, dims = 1:10)
-  data <- FindClusters(data, resolution = 0.5)
-  data <- RunUMAP(data, dims = 1:10)
+  data1 <- ScaleData(data, features = all.genes)
+  data2 <- RunPCA(data1, features = VariableFeatures(object = data1))
+  rm(data1)
+  data3 <- FindNeighbors(data2, dims = 1:10)
+  rm(data2)
+  data4 <- FindClusters(data3, resolution = 0.5)
+  rm(data3)
+  data <- RunUMAP(data4, dims = 1:10)
+  rm(data4)
   gene_count <- dim(data)[1]
   cell_count <- dim(data)[2]
-
+  
   message("Preprocessing complete")
-
+  gc()
   message("Performing pK identification")
   sweep.res.young <- paramSweep(data, PCs = 1:10, sct = FALSE)
   sweep.stats_young <- summarizeSweep(sweep.res.young, GT = FALSE)
@@ -139,7 +144,7 @@ perform_qc <- function(user, project, dataset, min, max, mt) {
   result <- as.numeric(result)
   doubletrate <- (length(data$orig.ident) / 1000) * 0.008
   annotations <- data@meta.data$ClusteringResults
-
+  gc() 
   message("Performing Homotypic Doublet Proportion Estimation")
   homotypic.prop <- modelHomotypic(annotations)
   nExp_poi <- round(doubletrate*nrow(data@meta.data))
