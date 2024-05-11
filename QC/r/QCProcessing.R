@@ -39,8 +39,8 @@ perform_qc <- function(user, project, dataset, min, max, mt) {
   # Perform garbage collection explicitly
   message("performing GC..")
   gc()  # Trigger garbage collection
-  rlimit_all()
   
+
   for (file in files) {
     file_name <- basename(file$Key)
     message(file_name)
