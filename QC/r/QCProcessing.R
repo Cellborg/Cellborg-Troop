@@ -39,6 +39,8 @@ perform_qc <- function(user, project, dataset, min, max, mt) {
   # Perform garbage collection explicitly
   message("performing GC..")
   gc()  # Trigger garbage collection
+  rlimit_all()
+  
   for (file in files) {
     file_name <- basename(file$Key)
     message(file_name)
@@ -79,10 +81,15 @@ perform_qc <- function(user, project, dataset, min, max, mt) {
   put_object(
     file = json_file,
     object = s3_key,
-    bucket = user_environment$qc_dataset_bucket
+    bucket = user_environment$qc_dataset_bucket,
+    multipart = TRUE
   )
   message("Uploaded qc violin plot data to S3: ", s3_key)
   file.remove(json_file)
+  
+  # Perform garbage collection explicitly
+  message("performing GC..")
+  gc()  # Trigger garbage collection
 
   message("Performing pre-processing of dataset")
   data <- NormalizeData(data, 
@@ -101,11 +108,16 @@ perform_qc <- function(user, project, dataset, min, max, mt) {
   put_object(
     file = json_file,
     object = s3_key,
-    bucket = user_environment$qc_dataset_bucket
+    bucket = user_environment$qc_dataset_bucket,
+    multipart = TRUE
   )
   message("Uploaded var feature plot data to S3")
   file.remove(json_file)
 
+  # Perform garbage collection explicitly
+  message("performing GC..")
+  gc()  # Trigger garbage collection
+  
   all.genes <- rownames(data)
   data <- ScaleData(data, features = all.genes)
   data <- RunPCA(data, features = VariableFeatures(object = data))
