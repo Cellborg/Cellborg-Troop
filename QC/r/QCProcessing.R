@@ -24,6 +24,9 @@ user_environment$qc_dataset_bucket <- QC_DATASET_BUCKET
 
 perform_qc <- function(user, project, dataset, min, max, mt) {
 
+  message("current memory allocated : ", memory.limit())
+  memory.limit(3000)
+  message("current memory allocated : ", memory.limit())
   #Load dataset and create Seurat object
   message("Loading dataset and creating seurat object")
   prefix <- paste0(user, "/", project, "/", dataset, "/")
@@ -33,7 +36,9 @@ perform_qc <- function(user, project, dataset, min, max, mt) {
     bucket = user_environment$dataset_bucket,
     prefix = prefix
   )
-  
+  # Perform garbage collection explicitly
+  message("performing GC..")
+  gc()  # Trigger garbage collection
   for (file in files) {
     file_name <- basename(file$Key)
     message(file_name)
