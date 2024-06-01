@@ -4,7 +4,7 @@ RUN mkdir /app
 WORKDIR /app
 
 # Install necessary Python packages
-RUN pip install requests boto3
+RUN pip install fastapi pydantic scanpy anndata pandas requests boto3
 
 COPY QCRunner.py /app/QCRunner.py
 
