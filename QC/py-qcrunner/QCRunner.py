@@ -25,7 +25,7 @@ class QCResponse(BaseModel):
 # variables in Global context
 user_environment = {}
 adata = ad.AnnData()
-workspace_path = r'/workspace'
+workspace_path = r'/tmp'
 
 # set bucket values depending on the environment
 def set_user_env():
