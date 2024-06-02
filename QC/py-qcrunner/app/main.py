@@ -107,6 +107,7 @@ def calculate_qc_metrics():
     )
 
 def voilin_plot():
+    global adata
     # One can now inspect violin plots of some of the computed QC metrics:
     # 
     # * the number of genes expressed in the count matrix
@@ -129,6 +130,7 @@ def voilin_plot():
     upload_plot_to_s3(s3_key,png_file)
 
 def scatter_plot():
+    global adata
     print("------scatter_plot begins -------")
     adata1 = adata[adata.obs.pct_counts_mt < 8, :].copy()
     # Additionally, it is useful to consider QC metrics jointly by inspecting a scatter plot colored by `pct_counts_mt`. 
@@ -145,10 +147,12 @@ def scatter_plot():
     upload_plot_to_s3(s3_key,png_file)
  
 def doublet_detection():
+    global adata
     print("------- doublet detection begins ------")
     sc.pp.scrublet(adata)
 
 def normalize():
+    global adata
     print("-----normalize begins----")
     # Normalizing to median total counts
     sc.pp.normalize_total(adata)
@@ -157,6 +161,7 @@ def normalize():
     print ("----normalize completed-----")
 
 def feature_selection():
+    global adata
     # ## Feature selection
     # 
     # As a next step, we want to reduce the dimensionality of the dataset and only include the most informative genes. This step is commonly known as feature selection. The scanpy function `pp.highly_variable_genes` annotates highly variable genes by reproducing the implementations of Seurat {cite}`Satija2015`, Cell Ranger {cite}`Zheng2017`, and Seurat v3 {cite}`stuart2019comprehensive` depending on the chosen `flavor`. 
@@ -165,6 +170,7 @@ def feature_selection():
     sc.pl.highly_variable_genes(adata)
 
 def dimentionality_reduction():
+    global adata
     # ## Dimensionality Reduction
     # Reduce the dimensionality of the data by running principal component analysis (PCA), which reveals the main axes of variation and denoises the data.
     print("------- dimentionality reduction begins ------")
@@ -194,6 +200,7 @@ def dimentionality_reduction():
 
 
 def nearest_neighbor_graph():
+    global adata
 # ## Nearest neighbor graph constuction and visualization
 # 
 # Let us compute the neighborhood graph of cells using the PCA representation of the data matrix.
@@ -212,6 +219,7 @@ def nearest_neighbor_graph():
     upload_plot_to_s3(targetfile,"./figures/umap1.png")
 
 def clustering():
+    global adata
 # ## Clustering
 # 
 # As with Seurat and many other frameworks, we recommend the Leiden graph-clustering method (community detection based on optimizing modularity) {cite}`traag2019louvain`. Note that Leiden clustering directly clusters the neighborhood graph of cells, which we already computed in the previous section.
@@ -224,6 +232,7 @@ def clustering():
     upload_plot_to_s3(targetfile,"./figures/umap2.png")
 
 def reassess_qc_and_filtering():
+    global adata
 # ## Re-assess quality control and cell filtering 
 # 
 # As indicated before, we will now re-assess our filtering strategy by visualizing different QC metrics using UMAP. 
@@ -249,6 +258,7 @@ def reassess_qc_and_filtering():
     upload_plot_to_s3(targetfile,"./figures/umap4.png")
 
 def cell_type_annotation():
+    global adata
     # ## Manual cell-type annotation
 
 # :::{note}
