@@ -89,8 +89,10 @@ def read_10x_mtx():
 
 def calculate_qc_metrics():
     global adata
-    sc.pp.filter_cells(adata, min_genes=200)
-    sc.pp.filter_genes(adata, min_cells=3)
+    min_genes=200
+    min_cells=3
+    sc.pp.filter_cells(adata, min_genes)
+    sc.pp.filter_genes(adata, min_cells)
     # The scanpy function {func}`~scanpy.pp.calculate_qc_metrics` calculates common quality control (QC) metrics, which are largely based on `calculateQCMetrics` from scater {cite}`McCarthy2017`. One can pass specific gene population to {func}`~scanpy.pp.calculate_qc_metrics` in order to calculate proportions of counts for these populations. Mitochondrial, ribosomal and hemoglobin genes are defined by distinct prefixes as listed below. 
 
     # mitochondrial genes, "MT-" for human, "mt-" for mouse
