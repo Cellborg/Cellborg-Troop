@@ -26,6 +26,7 @@ class QCResponse(BaseModel):
 user_environment = {}
 adata = ad.AnnData()
 workspace_path = r'/tmp'
+s3_plots_dir = ""
 
 # set bucket values depending on the environment
 def set_user_env():
@@ -108,6 +109,7 @@ def calculate_qc_metrics():
 
 def voilin_plot():
     global adata
+    global s3_plots_dir
     # One can now inspect violin plots of some of the computed QC metrics:
     # 
     # * the number of genes expressed in the count matrix
@@ -131,6 +133,7 @@ def voilin_plot():
 
 def scatter_plot():
     global adata
+
     print("------scatter_plot begins -------")
     adata1 = adata[adata.obs.pct_counts_mt < 8, :].copy()
     # Additionally, it is useful to consider QC metrics jointly by inspecting a scatter plot colored by `pct_counts_mt`. 
@@ -306,6 +309,8 @@ app = FastAPI()
 @app.post("/qc_endpoint", status_code=201)
 async def do_qc(qcreq: QCRequest):
     global adata
+    global s3_plots_dir
+
     s3_plots_dir = f"{qcreq.user}/{qcreq.project}/{qcreq.dataset}/plots/"
     set_user_env()
     load_dataset(qcreq)
