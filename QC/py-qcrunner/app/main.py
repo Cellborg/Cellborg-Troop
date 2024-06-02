@@ -30,6 +30,7 @@ workspace_path = r'/tmp'
 # set bucket values depending on the environment
 def set_user_env():
     global user_environment
+    global workspace_path
     # Create a dictionary-like object (similar to R's new.env())
     # Get the environment variable
     environment = os.getenv("ENVIRONMENT", default="dev")
@@ -49,10 +50,10 @@ def set_user_env():
 
     #create temp folder for keeping files in the workspace
     #handle windows
-    if os.name == 'nt':
-        workspace_path = r'C:\temp' 
-    if not os.path.exists(workspace_path):
-        os.makedirs(workspace_path)
+    # if os.name == 'nt':
+    #     workspace_path = r'C:\temp' 
+    # if not os.path.exists(workspace_path):
+    #     os.makedirs(workspace_path)
 
 # load dataset files for QC from S3 bucket to the local file system under /tmp
 # TODO: change /tmp to something else as this might cause problems.
