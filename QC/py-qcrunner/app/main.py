@@ -295,6 +295,7 @@ app = FastAPI()
 
 @app.post("/qc_endpoint", status_code=201)
 async def do_qc(qcreq: QCRequest):
+    global adata
     s3_plots_dir = f"{qcreq.user}/{qcreq.project}/{qcreq.dataset}/plots/"
     set_user_env()
     load_dataset(qcreq)
