@@ -287,6 +287,8 @@ def upload_plot_to_s3(s3_key, localfile):
     s3.upload_file(localfile, user_environment['qc_dataset_bucket'], s3_key, Callback=print)
     print(f"Uploaded plot png to S3: {s3_key}")
 
+#----- main -------
+app = FastAPI()
 
 @app.post("/qc_endpoint", status_code=201)
 async def do_qc(qcreq: QCRequest):

@@ -1,12 +1,10 @@
-FROM python:3.11-slim
+FROM python:3.9
 
-RUN mkdir /app
-WORKDIR /app
+WORKDIR /code
 
-# Install necessary Python packages
-RUN pip install fastapi pydantic scanpy anndata pandas requests boto3
+COPY ./requirements.txt /code/requirements.txt
+RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
 
-COPY QCRunner.py /app/QCRunner.py
+COPY ./app /code/app
 
-# Command to run the Python script
-CMD ["python", "/app/QCRunner.py"]
+CMD ["fastapi", "run", "app/main.py", "--port", "8001"]
