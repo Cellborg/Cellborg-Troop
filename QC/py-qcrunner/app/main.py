@@ -27,6 +27,7 @@ user_environment = {}
 adata = ad.AnnData()
 workspace_path = r'/tmp'
 s3_plots_dir = ""
+s3 = boto3.client("s3")
 
 # set bucket values depending on the environment
 def set_user_env():
@@ -65,7 +66,7 @@ def load_dataset(qcreq):
     prefix = f"{qcreq.user}/{qcreq.project}/{qcreq.dataset}/"
     print(prefix)
     
-    s3 = boto3.client("s3")
+
 
     # List files in the dataset bucket
     response = s3.list_objects_v2(Bucket=user_environment["dataset_bucket"], Prefix=prefix)
