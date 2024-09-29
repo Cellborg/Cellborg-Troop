@@ -5,3 +5,11 @@ pandas==2.2.2
 pydantic==2.7.2
 scanpy==1.10.1
 scikit-image==0.24.0
+umap==0.5.3 
+numpy==1.23.5 
+scipy==1.13.1 
+pandas==2.0.3 
+statsmodels==0.14.0 
+igraph==0.10.6 
+louvain==0.8.0 
+pynndescent==0.5.10
