@@ -37,7 +37,7 @@ def set_user_env():
     # Get the environment variable
     environment = os.getenv("ENVIRONMENT", default="dev")
     # Print a message
-    print(f"Cellborg QCProcessing R container running in environment: {environment}")
+    print(f"Cellborg QCProcessing Python container running in environment: {environment}")
     # Set bucket names based on the environment
     if environment == "dev":
         DATASET_BUCKET = "cellborgdatasetuploadbucket"

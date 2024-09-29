@@ -4,3 +4,4 @@ fastapi==0.111.0
 pandas==2.2.2
 pydantic==2.7.2
 scanpy==1.10.1
+scikit-image==0.24.0
