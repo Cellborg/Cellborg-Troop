@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from pydantic import BaseModel, Field
 import os
 import boto3
@@ -327,9 +327,9 @@ async def do_qc(qcreq: QCRequest):
     clustering()
     reassess_qc_and_filtering()
     cell_type_annotation()
-    return fastapi.Response(status_code=200, content='QC completed...')
+    return Response(status_code=200, content='QC completed...')
 
 @app.post("/shutdown")
 async def shutdown():
     os.kill(os.getpid(), signal.SIGTERM)
-    return fastapi.Response(status_code=200, content='Server shutting down...')
+    return Response(status_code=200, content='Server shutting down...')
