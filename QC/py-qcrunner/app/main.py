@@ -18,7 +18,7 @@ class QCRequest(BaseModel):
     mt: int
 
 class QCResponse(BaseModel):
-    sucess: bool
+    success: bool
     message: str
     cell_count: int
     gene_count: int
