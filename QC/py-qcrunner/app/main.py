@@ -308,7 +308,7 @@ def upload_plot_to_s3(s3_key, localfile):
 #----- main -------
 app = FastAPI()
 
-@app.post("/qc_endpoint", status_code=201)
+@app.post("/qc_endpoint", status_code=200)
 async def do_qc(qcreq: QCRequest):
     global adata
     global s3_plots_dir
@@ -328,7 +328,7 @@ async def do_qc(qcreq: QCRequest):
     clustering()
     reassess_qc_and_filtering()
     cell_type_annotation()
-    return {"sucess":       "TRUE", 
+    return {"success":       "TRUE", 
             "message":      "QC Completed Successfully",
             "cell_count":   adata.n_obs,
             "gene_count":   adata.n_vars

@@ -72,8 +72,8 @@ while True:
                 print("Sending QC request...",qc_request)
                 response = send_request('/qc_endpoint', qc_request)
                 print(response)
-                
-                if response.status_code == 201 :
+                json_response = response.json()
+                if json_response['success'] == "TRUE" :
                     print("QC Successful... Sending SNS message to clear dataset as completed...")
                     json_response = response.json()
 
