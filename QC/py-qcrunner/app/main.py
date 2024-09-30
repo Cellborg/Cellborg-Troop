@@ -313,7 +313,7 @@ async def do_qc(qcreq: QCRequest):
     global adata
     global s3_plots_dir
 
-    s3_plots_dir = f"{qcreq.user}/{qcreq.project}/{qcreq.dataset}/plots/"
+    s3_plots_dir = f"{qcreq.user}/{qcreq.project}/{qcreq.dataset}/plots"
     set_user_env()
     load_dataset(qcreq)
     adata = read_10x_mtx()
