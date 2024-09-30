@@ -72,13 +72,10 @@ while True:
                 print("Sending QC request...",qc_request)
                 response = send_request('/qc_endpoint', qc_request)
                 print(response)
-                json_response = response.json()
-                if json_response['success'] == "TRUE" :
+                if response['success'] == "TRUE" :
                     print("QC Successful... Sending SNS message to clear dataset as completed...")
-                    json_response = response.json()
-
-                    cell_count = json_response['cell_count']
-                    gene_count = json_response['gene_count']
+                    cell_count = response['cell_count']
+                    gene_count = response['gene_count']
                     # Send SNS message
                     data = {
                         "user": user, 
