@@ -1,3 +1,4 @@
+import signal
 from fastapi import FastAPI, Response
 from pydantic import BaseModel, Field
 import os
@@ -327,7 +328,11 @@ async def do_qc(qcreq: QCRequest):
     clustering()
     reassess_qc_and_filtering()
     cell_type_annotation()
-    return Response(status_code=200, content='QC completed...')
+    return {"sucess":       "TRUE", 
+            "message":      "QC Completed Successfully",
+            "cell_count":   adata.n_obs,
+            "gene_count":   adata.n_vars
+    }
 
 @app.post("/shutdown")
 async def shutdown():
