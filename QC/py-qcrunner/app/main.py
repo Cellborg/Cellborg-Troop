@@ -6,8 +6,16 @@ import boto3
 import scanpy as sc
 import anndata as ad
 import pandas as pd
+import hdf5plugin
 
 app = FastAPI()
+
+class QCPrePlotRequest(BaseModel):
+    user: str
+    project: str
+    dataset: str
+    mt: str
+
 
 class QCRequest(BaseModel):
     user: str
@@ -15,7 +23,25 @@ class QCRequest(BaseModel):
     dataset: str
     min: int
     max: int
-    mt: int
+    mt: str
+
+class QCDoublets(BaseModel):
+   user:str
+   project: str
+   dataset: str
+   countMax: int
+   countMin: int
+   geneMax:  int
+   geneMin:int
+   mitoMax: int
+   mitoMin: int
+
+
+class QCFinish(BaseModel):
+    user: str
+    project: str
+    dataset: str
+    doubletScore: float
 
 class QCResponse(BaseModel):
     success: bool
@@ -90,7 +116,7 @@ def read_10x_mtx():
     )
     return adata
 
-def calculate_qc_metrics():
+def calculate_qc_metrics(mt: str):
     global adata
     min_genes=200
     min_cells=3
@@ -99,7 +125,7 @@ def calculate_qc_metrics():
     # The scanpy function {func}`~scanpy.pp.calculate_qc_metrics` calculates common quality control (QC) metrics, which are largely based on `calculateQCMetrics` from scater {cite}`McCarthy2017`. One can pass specific gene population to {func}`~scanpy.pp.calculate_qc_metrics` in order to calculate proportions of counts for these populations. Mitochondrial, ribosomal and hemoglobin genes are defined by distinct prefixes as listed below. 
 
     # mitochondrial genes, "MT-" for human, "mt-" for mouse
-    adata.var["mt"] = adata.var_names.str.startswith("mt-")
+    adata.var["mt"] = adata.var_names.str.startswith(mt)
     # ribosomal genes
     adata.var["ribo"] = adata.var_names.str.startswith(("RPS", "RPL"))
     # hemoglobin genes
@@ -155,6 +181,7 @@ def doublet_detection():
     global adata
     print("------- doublet detection begins ------")
     sc.pp.scrublet(adata)
+    sc.pl.scrublet_score_distribution(adata, save = '.png')
 
 def normalize():
     global adata
@@ -231,10 +258,20 @@ def clustering():
 
 # Using the igraph implementation and a fixed number of iterations can be significantly faster, especially for larger datasets
     print("------- clustering begins --------")
-    sc.tl.leiden(adata, flavor="igraph", n_iterations=2)
+    sc.tl.leiden(adata, flavor="igraph", n_iterations=-1)
     sc.pl.umap(adata, color=["leiden"], save="2.png")
     targetfile=f"{s3_plots_dir}/QCclustering.png"
     upload_plot_to_s3(targetfile,"./figures/umap2.png")
+
+def gating_adata(countMx, countMn, geneMx, geneMn, mitoMx, mitoMn):
+    global adata
+    adata = adata[adata.obs.n_genes_by_counts < geneMx, :]
+    adata = adata[adata.obs.n_genes_by_counts > geneMn, :]
+    adata = adata[adata.obs.pct_counts_mt < mitoMx, :]
+    adata = adata[adata.obs.pct_counts_mt > mitoMn, :]
+    adata = adata[adata.obs.total_counts < countMx, :]
+    adata = adata[adata.obs.total_counts > countMn, :]
+    return adata
 
 def reassess_qc_and_filtering():
     global adata
@@ -308,31 +345,115 @@ def upload_plot_to_s3(s3_key, localfile):
 #----- main -------
 app = FastAPI()
 
-@app.post("/qc_endpoint", status_code=200)
-async def do_qc(qcreq: QCRequest):
-    global adata
-    global s3_plots_dir
+@app.post("/qc_pre_plot_endpoint", status_code = 200)
+async def do_pre_plot_qc(qcreq: QCPrePlotRequest):
+    try:
+        global adata
+        global s3_plots_dir
 
-    s3_plots_dir = f"{qcreq.user}/{qcreq.project}/{qcreq.dataset}/plots"
-    set_user_env()
-    load_dataset(qcreq)
-    adata = read_10x_mtx()
-    calculate_qc_metrics()
-    voilin_plot()
-    scatter_plot()
-    doublet_detection()
-    normalize()
-    feature_selection()
-    dimentionality_reduction()
-    nearest_neighbor_graph()
-    clustering()
-    reassess_qc_and_filtering()
-    cell_type_annotation()
-    return {"success":       "TRUE", 
-            "message":      "QC Completed Successfully",
-            "cell_count":   adata.n_obs,
-            "gene_count":   adata.n_vars
-    }
+        s3_plots_dir = f"{qcreq.user}/{qcreq.project}/{qcreq.dataset}/plots"
+        set_user_env()
+        load_dataset(qcreq)
+        adata = read_10x_mtx()
+        calculate_qc_metrics(qcreq.mt)
+        voilin_plot()
+        scatter_plot()
+
+        return {"success": True,
+                "message": "QC Pre-Plot Completed Successfully"
+                }
+    except Exception as err:
+        print(err)
+        return {"success": False,
+                "message": err}
+
+@app.post("/qc_doublet_endpoint", status_code=200)
+async def do_doublet_plot_qc(qcreq: QCDoublets):
+    try:
+        #gate adata
+        print(adata)
+        countMx = qcreq.countMax
+        countMn = qcreq.countMin
+        geneMx = qcreq.geneMax
+        geneMn = qcreq.geneMin
+        mitoMx = qcreq.mitoMax
+        mitoMn = qcreq.mitoMin
+
+        gating_adata(countMx, countMn, geneMx, geneMn, mitoMx, mitoMn)
+        doublet_detection()
+
+        #doublet detection
+        singlets = adata[adata.obs.predicted_doublet == False]
+        #create temperary file
+        singlets.write_h5ad(
+            "tmp.h5ad",
+        )
+        #upload file to s3
+        s3_key = f"{qcreq.user}/{qcreq.project}/{qcreq.dataset}/singlets.h5ad"
+        upload_plot_to_s3(s3_key, 'tmp.h5ad')
+        print("Successfully uploaded singlets to s3!!!")
+        #del temp file
+        os.remove("temp.h5ad")
+        print("temp file successfully deleted")
+
+        return{"success": True,
+            "message": "QC Completed Successfully",
+            }
+    except Exception as err:
+        print(err)
+        return{"success": False,
+               "message": err}
+
+#@app.post("/qc_finish_doublet_endpoint", status_code = 200)
+#async def finish_doublet(qcreq: QCFinish):
+#    doubletScore = qcreq.doubletScore
+#    singlets = adata[adata.obs.doublet_score < doubletScore]
+#    #save adata to s3
+#    try:
+#        singlets.write_h5ad(
+#            "tmp.h5ad",
+#        )
+#        s3_key = f"{qcreq.user}/{qcreq.project}/{qcreq.dataset}/singlets.h5ad"
+#        upload_plot_to_s3(s3_key, 'tmp.h5ad')
+#        print("Successfully uploaded singlets to s3!!!")
+#        os.remove("temp.h5ad")
+#        print("temp file successfully deleted")
+#        return{"success": True,
+#                "message": "QC Completed Successfully"}
+#    except Exception as err:
+#        print(err)
+#        return{"success": False,
+#               "message": err}
+
+
+#@app.post("/qc_endpoint", status_code=200)
+#async def do_qc(qcreq: QCRequest):
+#    global adata
+#    global s3_plots_dir
+#
+#    s3_plots_dir = f"{qcreq.user}/{qcreq.project}/{qcreq.dataset}/plots"
+#    set_user_env()
+#    load_dataset(qcreq)
+#    adata = read_10x_mtx()
+#    calculate_qc_metrics(qcreq.mt)
+#    voilin_plot()
+#    scatter_plot()
+#
+#   #doublets
+#    doublet_detection()
+#    #everything below this needs to be in analysis
+#    normalize()
+#    feature_selection()
+#    dimentionality_reduction()
+#    nearest_neighbor_graph()
+#    clustering()
+#    reassess_qc_and_filtering()
+#    cell_type_annotation()
+#    return {"success":       "TRUE", 
+#            "message":      "QC Completed Successfully",
+#            "cell_count":   adata.n_obs,
+#            "gene_count":   adata.n_vars
+#    }
 
 @app.post("/shutdown")
 async def shutdown():

@@ -14,3 +14,4 @@ igraph>0.10.6
 louvain>0.8.0 
 pynndescent==0.5.10
 setuptools==68.2.2
+hdf5plugin==5.0.0
