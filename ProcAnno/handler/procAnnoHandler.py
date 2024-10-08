@@ -91,6 +91,7 @@ while True:
                     }
                     response = send_sns(data)
                     print(response)
+                
             if request_type == "annotations":
                 print("Beginning annotations now...")
                 
