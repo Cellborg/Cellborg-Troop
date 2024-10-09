@@ -181,7 +181,7 @@ def doublet_detection():
     global adata
     print("------- doublet detection begins ------")
     sc.pp.scrublet(adata)
-    sc.pl.scrublet_score_distribution(adata, save = '.png')
+    print("------doublet detection is finished------")
 
 def normalize():
     global adata
@@ -357,7 +357,7 @@ async def do_pre_plot_qc(qcreq: QCPrePlotRequest):
         adata = read_10x_mtx()
         calculate_qc_metrics(qcreq.mt)
         voilin_plot()
-        scatter_plot()
+        #scatter_plot()
 
         return {"success": True,
                 "message": "QC Pre-Plot Completed Successfully"
@@ -371,7 +371,7 @@ async def do_pre_plot_qc(qcreq: QCPrePlotRequest):
 async def do_doublet_plot_qc(qcreq: QCDoublets):
     try:
         #gate adata
-        print(adata)
+        global adata
         countMx = qcreq.countMax
         countMn = qcreq.countMin
         geneMx = qcreq.geneMax
