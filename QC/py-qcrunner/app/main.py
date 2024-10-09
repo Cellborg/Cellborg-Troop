@@ -383,6 +383,7 @@ async def do_pre_plot_qc(qcreq: QCPrePlotRequest):
 @app.post("/qc_doublet_endpoint", status_code=200)
 async def do_doublet_plot_qc(qcreq: QCDoublets):
     try:
+        t1=datetime.now()
         #gate adata
         print(adata)
         countMx = qcreq.countMax
@@ -391,6 +392,8 @@ async def do_doublet_plot_qc(qcreq: QCDoublets):
         geneMn = qcreq.geneMin
         mitoMx = qcreq.mitoMax
         mitoMn = qcreq.mitoMin
+
+        print_time("[doublet_detection]")
 
         gating_adata(countMx, countMn, geneMx, geneMn, mitoMx, mitoMn)
         doublet_detection()
@@ -402,13 +405,16 @@ async def do_doublet_plot_qc(qcreq: QCDoublets):
             "tmp.h5ad",
         )
         #upload file to s3
+        print_time("[upload_plot_to_s3]")
         s3_key = f"{qcreq.user}/{qcreq.project}/{qcreq.dataset}/singlets.h5ad"
         upload_plot_to_s3(s3_key, 'tmp.h5ad')
         print("Successfully uploaded singlets to s3!!!")
         #del temp file
-        os.remove("temp.h5ad")
+        os.remove("tmp.h5ad")
         print("temp file successfully deleted")
-
+        t2=datetime.now()
+        time_elapsed=t2-t1
+        print("[time_elapsed]: %s" % time_elapsed)
         return{"success": True,
             "message": "QC Completed Successfully",
             }
