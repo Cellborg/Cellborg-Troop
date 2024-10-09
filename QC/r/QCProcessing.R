@@ -24,9 +24,6 @@ user_environment$qc_dataset_bucket <- QC_DATASET_BUCKET
 
 perform_qc <- function(user, project, dataset, min, max, mt) {
 
-  message("current memory allocated : ", memory.limit())
-  memory.limit(3000)
-  message("current memory allocated : ", memory.limit())
   #Load dataset and create Seurat object
   message("Loading dataset and creating seurat object")
   prefix <- paste0(user, "/", project, "/", dataset, "/")
@@ -36,35 +33,33 @@ perform_qc <- function(user, project, dataset, min, max, mt) {
     bucket = user_environment$dataset_bucket,
     prefix = prefix
   )
-  # Perform garbage collection explicitly
-  message("performing GC..")
-  gc()  # Trigger garbage collection
-  
+ 
 
   for (file in files) {
     file_name <- basename(file$Key)
     message(file_name)
     save_object(object = file$Key, bucket = user_environment$dataset_bucket,
                 file = file.path(temp_dir, file_name))
-    gc()
   }
   
   data <- Read10X(data.dir = temp_dir)
-  data <- CreateSeuratObject(
+  seurat_obj <- CreateSeuratObject(
     counts = data, 
     project = dataset, 
     min.cells = 3, 
     min.features = 200)
 
-  data[["percent.mt"]] <- PercentageFeatureSet(data, pattern = "^MT-")
+  seurat_obj[["percent.mt"]] <- PercentageFeatureSet(seurat_obj, pattern = "^MT-")
 
   message("Subsetting based on input: ", min, max, mt)
-  data <- subset(data, subset = nFeature_RNA > min & nFeature_RNA < max & percent.mt < mt)  # nolint
-  with(data, {
-    nrna <- data$nFeature_RNA
-    nrn <- data$nCount_RNA
-    pmt <- data$percent.mt
+  seurat_obj2 <- subset(seurat_obj, subset = nFeature_RNA > min & nFeature_RNA < max & percent.mt < mt)  # nolint
+  with(seurat_obj2, {
+    nrna <- seurat_obj2$nFeature_RNA
+    nrn <- seurat_obj2$nCount_RNA
+    pmt <- seurat_obj2$percent.mt
   })
+
+   rm(seurat_obj)
 
   ### Write data in JSON format
   json_data <- list(
@@ -75,7 +70,9 @@ perform_qc <- function(user, project, dataset, min, max, mt) {
   json_file <- tempfile(fileext = ".json")
   plot_data <- toJSON(json_data)
   write(plot_data, json_file)
+ 
 
+ 
   cat("Uploading the json data for qc violin plot to S3...")
   ### Create S3 Object key for quality control data
   s3_key <- paste0(user, "/", project, "/", dataset, "/plots/QcViolinPlotData.json")
@@ -83,23 +80,34 @@ perform_qc <- function(user, project, dataset, min, max, mt) {
     file = json_file,
     object = s3_key,
     bucket = user_environment$qc_dataset_bucket,
+    show_progress = TRUE,
     multipart = TRUE
   )
   message("Uploaded qc violin plot data to S3: ", s3_key)
   file.remove(json_file)
   
-  # Perform garbage collection explicitly
-  message("performing GC..")
-  gc()  # Trigger garbage collection
+  rm(json_data,plot_data,nrn,nrna,pmt)
+  do_gc()
 
   message("Performing pre-processing of dataset")
-  data <- NormalizeData(data, 
+  data1 <- NormalizeData(seurat_obj2, 
             normalization.method = "LogNormalize",
             scale.factor = 10000)
-  data <- FindVariableFeatures(data, selection.method = "vst", nfeatures = 2000)
+  
+  rm(seurat_obj2)
+  
+  data2 <- FindVariableFeatures(data1, selection.method = "vst", nfeatures = 2000)
+
+  rm(data1)
+
   message("Found variable features")
-  json_data <- variable_feature_data(data)
+  json_data <- variable_feature_data(data2)
+
   plot_data <- toJSON(json_data)
+
+  rm(json_data)
+  do_gc()
+
   json_file <- tempfile(fileext = ".json")
   write(plot_data, json_file)
   ### Create S3 Object key for variable feature data
@@ -110,60 +118,94 @@ perform_qc <- function(user, project, dataset, min, max, mt) {
     file = json_file,
     object = s3_key,
     bucket = user_environment$qc_dataset_bucket,
+    show_progress = TRUE,
     multipart = TRUE
   )
   message("Uploaded var feature plot data to S3")
   file.remove(json_file)
-  rm(data,json_data,plot_data)
-  # Perform garbage collection explicitly
-  message("performing GC..")
-  gc()  # Trigger garbage collection
+
+  rm(plot_data)
   
-  all.genes <- rownames(data)
-  data1 <- ScaleData(data, features = all.genes)
-  data2 <- RunPCA(data1, features = VariableFeatures(object = data1))
-  rm(data1)
-  data3 <- FindNeighbors(data2, dims = 1:10)
+  all.genes <- rownames(data2)
+  data3 <- ScaleData(data2, features = all.genes)
+  
   rm(data2)
-  data4 <- FindClusters(data3, resolution = 0.5)
+  do_gc(5)
+
+  varfeat <- VariableFeatures(object = data3)
+  data4 <- RunPCA(data3, features = varfeat)
+ 
   rm(data3)
-  data <- RunUMAP(data4, dims = 1:10)
-  rm(data4)
-  gene_count <- dim(data)[1]
-  cell_count <- dim(data)[2]
+  do_gc(5)
+  
+  data5 <- FindNeighbors(data4, dims = 1:10)
+  data6 <- FindClusters(data5, resolution = 0.5)
+
+  data7 <- RunUMAP(data6, dims = 1:10)
+ 
+  rm(data4,data3,data5,data6)
+  do_gc(10)
+
+  gene_count <- dim(data7)[1]
+  cell_count <- dim(data7)[2]
   
   message("Preprocessing complete")
-  gc()
   message("Performing pK identification")
-  sweep.res.young <- paramSweep(data, PCs = 1:10, sct = FALSE)
+  sweep.res.young <- paramSweep(data7, PCs = 1:10, sct = FALSE)
   sweep.stats_young <- summarizeSweep(sweep.res.young, GT = FALSE)
   bcmvn_young <- find.pK(sweep.stats_young)
   attributes(bcmvn_young)
   m <- bcmvn_young[bcmvn_young$BCmetric == max(bcmvn_young$BCmetric), ]
+
   result <- m$pK
   result <- as.numeric(result)
-  doubletrate <- (length(data$orig.ident) / 1000) * 0.008
-  annotations <- data@meta.data$ClusteringResults
-  gc() 
+ 
+
+  doubletrate <- (length(data7$orig.ident) / 1000) * 0.008
+  annotations <- data7@meta.data$ClusteringResults
+
+
   message("Performing Homotypic Doublet Proportion Estimation")
   homotypic.prop <- modelHomotypic(annotations)
-  nExp_poi <- round(doubletrate*nrow(data@meta.data))
+
+  rm(annotations)
+  do_gc()
+
+  nExp_poi <- round(doubletrate*nrow(data7@meta.data))
   nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
-  all_singlets <- doubletFinder(data, PCs = 1:10, pN = 0.25, pK = result, nExp = nExp_poi, reuse.pANN = FALSE, sct = FALSE) # nolint: line_length_linter.
+  all_singlets <- doubletFinder(data7, PCs = 1:10, pN = 0.25, pK = result, nExp = nExp_poi, reuse.pANN = FALSE, sct = FALSE,10000) # nolint: line_length_linter.
+  
+  rm(data7)
+  do_gc()
+  
   column <- grep(paste0("^","DF.classifications"), colnames(all_singlets@meta.data), value = TRUE) # nolint
   Idents(object = all_singlets) <- column
 
   singlets <- subset(all_singlets, idents = c("Singlet"), invert = FALSE)
+  doublets <- subset(all_singlets, idents = c("Doublet"), invert = FALSE)
+  
+  rm(all_singlets)
+  do_gc()
+
   singlet_data <- Embeddings(object = singlets, reduction = "umap")
   df_singlets <- as.data.frame(singlet_data)
   df_singlets$class <- "Singlet"
+  rm(singlet_data) 
+  do_gc()
+  
 
-  doublets <- subset(all_singlets, idents = c("Doublet"), invert = FALSE)
   doublet_data <- Embeddings(object = doublets, reduction = "umap")
   df_doublets <- as.data.frame(doublet_data)
   df_doublets$class <- "Doublet"
-
+  
+  rm(doublets,doublet_data)
+  do_gc()
+  
   combined_df <- rbind(df_singlets, df_doublets)
+  
+  rm(df_singlets,df_doublets)
+  do_gc()
+
   json_file <- tempfile(fileext = ".json")
   write_json(combined_df, json_file)
   s3_key <- paste0(user, "/", project, "/", dataset, "/plots/doubletplot.json")
@@ -174,7 +216,7 @@ perform_qc <- function(user, project, dataset, min, max, mt) {
   )
   message("Uploaded doublet dim plot to s3: ", s3_key)
   unlink(json_file)
-
+  do_gc()
   tmp_file <- tempfile(fileext = ".rds")
   saveRDS(singlets, file = tmp_file)
   s3_key <- paste0(user, "/", project, "/", dataset, "/", dataset, ".rds")
@@ -226,8 +268,24 @@ variable_feature_data <- function(
     Mean_Expression = mean_expression,
     Standardized_Variance = standardized_variance
   )
+  rm(hvf_info)
+  do_gc()
 
   return(variable_feature_data)
+}
+
+do_gc <- function(sleep_seconds=10){
+  message("performing gc...")
+  print("========objects in memory=======")
+  sort( sapply(ls(),function(x){object.size(get(x))}))
+  print("========gc begin")
+
+  gc()
+  Sys.sleep(sleep_seconds)
+
+  print("========gc done")
+  print("========objects in memory=======")
+  sort( sapply(ls(),function(x){object.size(get(x))}))
 }
 
 #* @post /qc_endpoint
@@ -260,3 +318,4 @@ function(req, res) {
   message("Shutting down the QC API server...")
   quit(save = "no", status = 0, runLast = TRUE)
 }
+
