@@ -86,23 +86,23 @@ while True:
                 else:
                     print(f"Error in QC: {response.get('message')}")
             elif request_type == "QCDoublet":
-                countMx = queen_service_request["countMax"]
-                countMn = queen_service_request["countMin"]
-                geneMx = queen_service_request["geneMax"]
-                geneMn = queen_service_request["geneMin"]
-                mitoMx = queen_service_request["mitoMax"]
-                mitoMn = queen_service_request["mitoMin"]
+                countMax = queen_service_request["countMax"]
+                countMin = queen_service_request["countMin"]
+                geneMax = queen_service_request["geneMax"]
+                geneMin = queen_service_request["geneMin"]
+                mitoMax = queen_service_request["mitoMax"]
+                mitoMin = queen_service_request["mitoMin"]
 
                 qc_request = {
                     "user": user, 
                     "project": project, 
                     "dataset": dataset,
-                    "countMx":countMx,
-                    "countMn":countMn,
-                    "geneMx":geneMx,
-                    "geneMn":geneMn,
-                    "mitoMx":mitoMx,
-                    "mitoMn":mitoMn
+                    "countMax":countMax,
+                    "countMin":countMin,
+                    "geneMax":geneMax,
+                    "geneMin":geneMin,
+                    "mitoMax":mitoMax,
+                    "mitoMin":mitoMin
                 }  
                 print("Sending QC request...",qc_request)
                 response = send_request('/qc_doublet_endpoint', qc_request)
