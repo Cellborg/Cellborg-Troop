@@ -7,6 +7,7 @@ import scanpy as sc
 import anndata as ad
 import pandas as pd
 import hdf5plugin
+from datetime import datetime, timedelta
 
 app = FastAPI()
 
@@ -342,23 +343,35 @@ def upload_plot_to_s3(s3_key, localfile):
     s3.upload_file(localfile, user_environment['qc_dataset_bucket'], s3_key, Callback=print)
     print(f"Uploaded plot png to S3: {s3_key}")
 
+def print_time(msg):
+    time_now = datetime.now()
+    date_time = time_now.strftime("%m/%d/%Y, %H:%M:%S")
+    print("===%s: %s" % (msg, time_now))
+
 #----- main -------
 app = FastAPI()
 
 @app.post("/qc_pre_plot_endpoint", status_code = 200)
 async def do_pre_plot_qc(qcreq: QCPrePlotRequest):
     try:
+        t1=datetime.now()
         global adata
         global s3_plots_dir
 
         s3_plots_dir = f"{qcreq.user}/{qcreq.project}/{qcreq.dataset}/plots"
+        print_time("[load_dataset_from_s3]")
         set_user_env()
         load_dataset(qcreq)
         adata = read_10x_mtx()
+        print_time("[calculate_qc_metrics]")
         calculate_qc_metrics(qcreq.mt)
+        print_time("[generate_plots]")
         voilin_plot()
         scatter_plot()
-
+        t2=datetime.now()
+        time_elapsed=t2-t1
+        #date_time = time_elapsed.strftime("%m/%d/%Y, %H:%M:%S")
+        print("[time_elapsed]: %s" % time_elapsed)
         return {"success": True,
                 "message": "QC Pre-Plot Completed Successfully"
                 }
