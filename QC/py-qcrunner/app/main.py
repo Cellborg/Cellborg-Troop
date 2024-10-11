@@ -405,7 +405,6 @@ async def do_doublet_plot_qc(qcreq: QCDoublets):
         singlets.write_h5ad(
             "tmp.h5ad",
         )
-
         #upload file to s3
         print_time("[upload_plot_to_s3]")
         s3_key = f"{qcreq.user}/{qcreq.project}/{qcreq.dataset}/singlets.h5ad"

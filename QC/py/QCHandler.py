@@ -6,7 +6,7 @@ import os
 client = boto3.client('sqs', region_name='us-west-2')
 sns = boto3.client('sns', region_name='us-west-2')
 queue_url = os.environ.get("SQS_QUEUE_URL")
-env = os.environ.get("ENVIRONMENT", "dev") 
+env = os.environ.get("ENVIRONMENT", "dev")
 print(f"Cellborg Troop - QC Python container running in {env} environment")
 if env == "dev":
     SNS_TOPIC = 'arn:aws:sns:us-west-2:865984939637:QCCompleteTopic'
@@ -56,38 +56,99 @@ while True:
             user = queen_service_request["user"]
             dataset = queen_service_request["dataset"]
 
-            if request_type == "qualityControl":
-
-                subset_min = queen_service_request["min"]
-                subset_max = queen_service_request["max"]
-                subset_mt = queen_service_request["mt"]
+            #preplot qc being parsed here
+            if request_type == "QCPrePlot":
+                
+                species_mt = queen_service_request["mt"]
                 qc_request = {
                     "user": user, 
                     "project": project, 
                     "dataset": dataset,
-                    "min": subset_min,
-                    "max": subset_max,
-                    "mt": subset_mt
+                    "mt": species_mt
                 }            
                 print("Sending QC request...",qc_request)
-                response = send_request('/qc_endpoint', qc_request)
-                if response.get("success"):
-                    print("QC Successful... Sending SNS message to clear dataset as completed...")
-                    cell_count = response.get("cell_count")
-                    gene_count = response.get("gene_count")
+                response = send_request('/qc_pre_plot_endpoint', qc_request)
+                print(response)
+                if response['success']:
+                    print("QC Pre-Plot Successful... Sending SNS message to clear dataset as completed...")
+                    
                     # Send SNS message
                     data = {
+                        "stage": "prePlot",
                         "user": user, 
                         "project": project, 
                         "dataset": dataset,
-                        "complete": True,
-                        "cell_count": cell_count,
-                        "gene_count": gene_count
+                        "complete": True
+                     
                     } 
                     response = send_sns(data)
                     print(response)
                 else:
                     print(f"Error in QC: {response.get('message')}")
+            elif request_type == "QCDoublet":
+                countMax = queen_service_request["countMax"]
+                countMin = queen_service_request["countMin"]
+                geneMax = queen_service_request["geneMax"]
+                geneMin = queen_service_request["geneMin"]
+                mitoMax = queen_service_request["mitoMax"]
+                mitoMin = queen_service_request["mitoMin"]
+
+                qc_request = {
+                    "user": user, 
+                    "project": project, 
+                    "dataset": dataset,
+                    "countMax":countMax,
+                    "countMin":countMin,
+                    "geneMax":geneMax,
+                    "geneMin":geneMin,
+                    "mitoMax":mitoMax,
+                    "mitoMin":mitoMin
+                }  
+                print("Sending QC request...",qc_request)
+                response = send_request('/qc_doublet_endpoint', qc_request)
+                print(response)
+                if response['success']:
+                    print("QC Doublet Successful... Sending SNS message to clear dataset as completed...")
+                    
+                    # Send SNS message
+                    data = {
+                        "stage": "doublet",
+                        "user": user, 
+                        "project": project, 
+                        "dataset": dataset,
+                        "complete": True
+                     
+                    } 
+                    response = send_sns(data)
+                    print(response)
+                else:
+                    print(f"Error in QC: {response.get('message')}")
+
+            #elif request_type == "QCFinishDoublet":
+            #    doubletScore = request_type["doubletScore"]
+            #
+            #    qc_req = {
+            #        user: user,
+            #        project: project,
+            #        dataset: dataset,
+            #        doubletScore: doubletScore
+            #    }
+            #    print("Sending QC request...",qc_req)
+            #    response = send_request('/qc_finish_doublet_endpoint', qc_req)
+            #    print(response)
+            #    if response['success']:
+            #        print("QC Finish Doublet Successful... Sending SNS message to clear dataset as completed...")
+            #        data = {
+            #            "stage":"FinishDoublet",
+            #            user:user,
+            #            "project": project, 
+            #            "dataset": dataset,
+            #            "complete": True
+            #        }
+            #        response = send_sns(data)
+            #        print(response)
+            #    else:
+            #        print(f"Error in QC: {response.get('message')}")
             
             elif request_type == "killServer":
 

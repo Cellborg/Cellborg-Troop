@@ -20,7 +20,7 @@ message("Cellborg Queen R container running in environment: ", environment)
 
 if (environment == "dev") {
   DATASET_BUCKET <- "cellborgdatasetuploadbucket"
-  QC_DATASET_BUCKET <- "cellborgqcdatasetbucket"
+  QC_DATASET_BUCKET <- "cellborgqcdatasetbucket" #Seurat object
   VAR_FEAT_BUCKET <- "cellborgvariablefeaturebucket"
   CLUSTER_BUCKET <- "cellborgdatasetclusterplotbucket"
   FEATURE_PLOT_BUCKET <- "cellborggenefeatureplotbucket"

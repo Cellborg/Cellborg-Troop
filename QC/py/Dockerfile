@@ -4,6 +4,7 @@ RUN mkdir /app
 WORKDIR /app
 
 # Install necessary Python packages
+RUN python -m pip install --upgrade pip
 RUN pip install requests boto3
 
 COPY QCHandler.py /app/QCHandler.py
