@@ -51,12 +51,31 @@ class QCResponse(BaseModel):
     cell_count: int
     gene_count: int
 
+class initializeProjectRequest(BaseModel):
+    user:str
+    project: str
+    datasets: list[str]
+
+class clusteringRequest(BaseModel):
+    user: str
+    project: str
+    resolution: float
+
+class annoRequest(BaseModel):
+    user: str
+    project: str
+    resolution: float
+    annotations: object
+
 # variables in Global context
 user_environment = {}
 adata = ad.AnnData()
 workspace_path = r'/tmp'
 s3_plots_dir = ""
 s3 = boto3.client("s3")
+resolution_global= 0.0
+
+principle_components=50
 
 # set bucket values depending on the environment
 def set_user_env():
@@ -203,19 +222,30 @@ def feature_selection():
     sc.pp.highly_variable_genes(adata, n_top_genes=2000)
     sc.pl.highly_variable_genes(adata)
 
-def dimentionality_reduction():
+def dimentionality_reduction(s3_path):
     global adata
+    global principle_components
     # ## Dimensionality Reduction
     # Reduce the dimensionality of the data by running principal component analysis (PCA), which reveals the main axes of variation and denoises the data.
     print("------- dimentionality reduction begins ------")
     sc.tl.pca(adata)
 
+    #find ideal number of principle components
+    df = adata.uns["pca"]['variance_ratio'].cumsum(axis=0)
+    if df[-1] < 0.95:
+        print("use 50")
+    else:
+        for num in range(len(df)):
+            if df[num] >=0.95:
+                principle_components = num+1
+                break
+                
     # Let us inspect the contribution of single PCs to the total variance in the data. This gives us information about how many PCs we should consider in order to compute the neighborhood relations of cells, e.g. used in the clustering function {func}`~scanpy.tl.leiden` or {func}`~scanpy.tl.tsne`. In our experience, there does not seem to be signifigant downside to overestimating the numer of principal components.
-    sc.pl.pca_variance_ratio(adata, n_pcs=50, log=True, save=".png")
+    sc.pl.pca_variance_ratio(adata, n_pcs=principle_components, log=True, save=".png")
     png_file1 = "./figures/pca_variance_ratio.png"
         # Create S3 object key for quality control data
-    s3_key = f"{s3_plots_dir}/QCpca_variance_ratio.png"
-    upload_plot_to_s3(s3_key,png_file1)
+    s3_key = f"{s3_path}/QCpca_variance_ratio.png"
+    upload_to_s3("pca",s3_key,png_file1)
     
     # You can also plot the principal components to see if there are any potentially undesired features (e.g. batch, QC metrics) driving signifigant variation in this dataset. In this case, there isn't anything too alarming, but it's a good idea to explore this.
     sc.pl.pca(
@@ -228,9 +258,23 @@ def dimentionality_reduction():
     )
     # upload plots to s3
     png_file2 = "./figures/pca.png"
-        # Create S3 object key for quality control data
-    s3_key = f"{s3_plots_dir}/QCpca.png"
-    upload_plot_to_s3(s3_key,png_file2)
+    # Create S3 object key for quality control data
+    s3_key = f"{s3_path}/QCpca.png"
+    upload_plot_to_s3("pca",s3_key,png_file2)
+
+    print("----- nearest_neighbor_graph begins -----")
+    sc.pp.neighbors(adata)
+    # This graph can then be embedded in two dimensions for visualiztion with UMAP (McInnes et al., 2018):
+    sc.tl.umap(adata)
+    # We can now visualize the UMAP according to the `sample`. 
+    sc.pl.umap(
+        adata,
+        # Setting a smaller point size to get prevent overlap
+        size=2,
+        save="1.png"
+    )
+    targetfile=f"{s3_path}/QCnearest_neighbor.png"
+    upload_plot_to_s3(targetfile,"./figures/umap1.png")
 
 
 def nearest_neighbor_graph():
@@ -252,18 +296,25 @@ def nearest_neighbor_graph():
     targetfile=f"{s3_plots_dir}/QCnearest_neighbor.png"
     upload_plot_to_s3(targetfile,"./figures/umap1.png")
 
-def clustering():
+def clustering(s3_path, resolution):
     global adata
+    global resolution_global
+
 # ## Clustering
 # 
 # As with Seurat and many other frameworks, we recommend the Leiden graph-clustering method (community detection based on optimizing modularity) {cite}`traag2019louvain`. Note that Leiden clustering directly clusters the neighborhood graph of cells, which we already computed in the previous section.
 
 # Using the igraph implementation and a fixed number of iterations can be significantly faster, especially for larger datasets
     print("------- clustering begins --------")
-    sc.tl.leiden(adata, flavor="igraph", n_iterations=-1)
+    sc.tl.leiden(adata, resolution = resolution, flavor="igraph", n_iterations=-1)
     sc.pl.umap(adata, color=["leiden"], save="2.png")
-    targetfile=f"{s3_plots_dir}/QCclustering.png"
+    targetfile=f"{s3_path}/QCclustering.png"
     upload_plot_to_s3(targetfile,"./figures/umap2.png")
+    resolution_global = resolution
+    return (
+        adata.var_names, adata.obs[f"leiden_res_${resolution}"].cat.categories
+    )
+
 
 def gating_adata(countMx, countMn, geneMx, geneMn, mitoMx, mitoMn):
     global adata
@@ -301,41 +352,11 @@ def reassess_qc_and_filtering():
     targetfile=f"{s3_plots_dir}/QCre-assess-cell-filtering.png"
     upload_plot_to_s3(targetfile,"./figures/umap4.png")
 
-def cell_type_annotation():
+def cell_type_annotation(annotations):
     global adata
-    # ## Manual cell-type annotation
+    global resolution_global
 
-# :::{note}
-# This section of the tutorial is expanded upon using prior knowledge resources like automated assignment and gene enrichment in the scverse tutorial [here](https://scverse-tutorials.readthedocs.io/en/latest/notebooks/basic-scrna-tutorial.html#cell-type-annotation)
-# :::
-
-# Cell type annotation is laborous and repetitive task, one which typically requires multiple rounds of subclustering and re-annotation. It's difficult to show the entirety of the process in this tutorial, but we aim to show how the tools scanpy provides assist in this process.
-
-# We have now reached a point where we have obtained a set of cells with decent quality, and we can proceed to their annotation to known cell types. Typically, this is done using genes that are exclusively expressed by a given cell type, or in other words these genes are the marker genes of the cell types, and are thus used to distinguish the heterogeneous groups of cells in our data. Previous efforts have collected and curated various marker genes into available resources, such as [CellMarker](http://bio-bigdata.hrbmu.edu.cn/CellMarker/), [TF-Marker](http://bio.liclab.net/TF-Marker/), and [PanglaoDB](https://panglaodb.se/). The [cellxgene gene expression tool](https://cellxgene.cziscience.com/gene-expression) can also be quite useful to see which cell types a gene has been expressed in across many existing datasets.
-
-# Commonly and classically, cell type annotation uses those marker genes subsequent to the grouping of the cells into clusters. So, let's generate a set of clustering solutions which we can then use to annotate our cell types. Here, we will use the Leiden clustering algorithm which will extract cell communities from our nearest neighbours graph.
-    for res in [0.02, 0.5, 2.0]:
-        sc.tl.leiden(
-            adata, key_added=f"leiden_res_{res:4.2f}", resolution=res, flavor="igraph"
-        )
-    # Notably, the number of clusters that we define is largely arbitrary, and so is the `resolution` parameter that we use to control for it. As such, the number of clusters is ultimately bound to the stable and biologically-meaningful groups that we can ultimately distringuish, typically done by experts in the corresponding field or by using expert-curated prior knowledge in the form of markers.
-    sc.pl.umap(
-        adata,
-        color=["leiden_res_0.02", "leiden_res_0.50", "leiden_res_2.00"],
-        legend_loc="on data",
-        save="5.png",
-    )
-    targetfile=f"{s3_plots_dir}/QCcelltype-annotation-1.png"
-    upload_plot_to_s3(targetfile,"./figures/umap5.png")
-
-    sc.pl.umap(
-        adata,
-        color=["leiden_res_0.02", "leiden_res_0.50", "leiden_res_2.00"],
-        legend_loc="on data",
-        save="6.png",
-    )
-    targetfile=f"{s3_plots_dir}/QCcelltype-annotation-2.png"
-    upload_plot_to_s3(targetfile,"./figures/umap6.png")
+    adata.obs["cell_type_lvl1"] = adata.obs[f"leiden_res_${resolution_global}"].map(annotations)
 
 
 
@@ -348,6 +369,21 @@ def print_time(msg):
     time_now = datetime.now()
     date_time = time_now.strftime("%m/%d/%Y, %H:%M:%S")
     print("===%s: %s" % (msg, time_now))
+
+def initializeAdata(s3_singlets_path: str, datasets: list[str]):
+    global adata
+    global user_environment
+
+    samples={datasetId:s3_singlets_path+f"/{datasetId}/singlets.h5ad" for datasetId in datasets} 
+    adatas={}
+    for sample_id, filepath in samples.items():
+        response = s3.get_object(Bucket= user_environment["qc_dataset_bucket"], Key=filepath)
+        sample_adata = sc.read_text(response['Body'].read().decode('utf-8'))
+        #sample_adata.var_names_make_unique()
+        adata[sample_id] = sample_adata
+    
+    adata = ad.concat(adatas, label="sample")
+    adata.obs_names_make_unique()
 
 #----- main -------
 app = FastAPI()
@@ -443,6 +479,110 @@ async def do_doublet_plot_qc(qcreq: QCDoublets):
         print(err)
         return{"success": False,
                "message": err}
+    
+#------------------- Processing & Annotations-----------------
+
+@app.post("/init_endpoint", status_code=200)
+async def initialize_project(initReq: initializeProjectRequest):
+    try:
+        global adata
+        global user_environment
+        global principle_components
+
+        s3_path = f"{initReq.user}/{initReq.project}"
+        initializeAdata(s3_path, initReq.datasets)
+        print('Successfully concatonated all datasets')
+        normalize()
+        print('Successfully normalized concatonated dataset')
+        feature_selection()
+        print('Successfully selected features')
+        dimentionality_reduction(s3_path)
+        print('Successfully reduced dimensions')
+        
+        #create project_values.json in proj dir
+        numpcs = {
+            "num_pcs":principle_components
+        }
+        with open("project_values.json", "w") as outputfile:
+            json.dump(numpcs, outputfile)
+        print("created project_values.json file")
+
+        input_var_path = f"{initReq.user}/{initReq.project}/project_values.json"
+        upload_plot_to_s3(input_var_path, 'project_values.json')
+        print("uploaded project_values.json file to s3")
+
+        os.remove("project_values.json")
+        print("project_values.json file successfully deleted")
+
+        return{
+            "success": True,
+            "message": "ProcAnno successfully initialized"
+        }
+
+    except Exception as err:
+        print(err)
+        return { 
+            "success": False,
+            "message": err
+        }
+    
+@app.post("/clustering", status_code=200)
+async def do_clustering(clustReq: clusteringRequest):
+    try:
+        s3_path = f"{clustReq.user}/{clustReq.project}/project_values.json"
+        gene_names, clustering = clustering(s3_path, clustReq.resolution)
+
+        #download old project_values file from s3
+        s3.Bucket(user_environment["qc_dataset_bucket"]).download_file('project_values.json', s3_path)
+
+        #add clustering resolution
+        with open('project_values.json') as f:
+            data = json.load(f)
+            data['clust_resolution'] = clustReq.resolution
+            json.dump(data, f)
+        print("Added clustering resolution to project values")
+        
+        #upload updated file to s3
+        upload_plot_to_s3(f's3_path+/project_values.json','project_values.json')
+        print("uploaded new project values to s3")
+        
+        #remove temp file locally
+        os.remove("project_values.json")
+
+
+        return {
+            "success": True,
+            "message": "Clustering successfully finished",
+            "gene_names": gene_names,
+            "clusters": clustering
+        }
+    except Exception as err:
+        print(err)
+        return {
+            "success": False,
+            "message": err
+        }
+    
+@app.post("/annotations", status_code = 200)
+async def annotations(annoRequest: annoRequest):
+    global adata
+    try:
+        cell_type_annotation(annoRequest.annotations)
+        #used to verify that annotations did work
+        sc.pl.umap(
+        adata,
+        color=["cell_type_lvl1"],
+        legend_loc="on data",
+        )
+        return{
+            "success":True,
+            "message":"Annotatons successfully completed"
+        }
+    except Exception as err:
+        return{
+            "success":False,
+            "message": err
+        }
 
 #@app.post("/qc_finish_doublet_endpoint", status_code = 200)
 #async def finish_doublet(qcreq: QCFinish):
