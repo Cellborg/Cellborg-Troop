@@ -160,7 +160,7 @@ while True:
                     data = {
                         "user": user, 
                         "project": project, 
-                        "completed_step": "Initialize"
+                        "stage": "initialized"
                     }
                     response = send_sns(data)
                     print(response)
@@ -176,7 +176,7 @@ while True:
                         "project":project,
                         "geneNames": response["gene_names"],
                         "clusters": response["clusters"],
-                        "completed_step":"Clustered"
+                        "stage":"cluster"
                     }
                     response = send_sns(data)
                     print(response)
@@ -190,7 +190,7 @@ while True:
                     data = {
                         "user":user,
                         "project":project,
-                        "completed_step":"Annotations"
+                        "stage":"annotations"
                     }
                 
                     response = send_sns(data)
