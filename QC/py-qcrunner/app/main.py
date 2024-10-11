@@ -245,7 +245,7 @@ def dimentionality_reduction(s3_path):
     png_file1 = "./figures/pca_variance_ratio.png"
         # Create S3 object key for quality control data
     s3_key = f"{s3_path}/QCpca_variance_ratio.png"
-    upload_to_s3("pca",s3_key,png_file1)
+    upload_plot_to_s3(s3_key,png_file1)
     
     # You can also plot the principal components to see if there are any potentially undesired features (e.g. batch, QC metrics) driving signifigant variation in this dataset. In this case, there isn't anything too alarming, but it's a good idea to explore this.
     sc.pl.pca(
