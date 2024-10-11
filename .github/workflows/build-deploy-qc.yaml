@@ -42,15 +42,13 @@ jobs:
         cd QC/py
         docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
         docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG      
-    - name: Build, Tag, and Push the QC/r
-      id: build-qc-r
+    - name: Build, Tag, and Push the QC/py-qcrunner
+      id: build-qc-py-qcrunner
       env:
         REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        REPOSITORY: cellborg-beta-qc_r
+        REPOSITORY: cellborg-beta-qc_pyrunner
         IMAGE_TAG: 'latest'
       run: |
-        cd QC/r
+        cd QC/py-qcrunner
         docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG .
         docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
-  
-    
