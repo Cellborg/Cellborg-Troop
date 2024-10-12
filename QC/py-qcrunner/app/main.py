@@ -546,7 +546,10 @@ async def do_clustering(clustReq: clusteringRequest):
         gene_names, clusters = clustering(s3_path, clustReq.resolution)
 
         #download old project_values file from s3
-        s3.Bucket(user_environment["qc_dataset_bucket"]).download_file('project_values.json', s3_path)
+        s3.download_file(
+            Bucket = user_environment["qc_dataset_bucket"], 
+            Key = s3_path+'/project_values.json', 
+            Filename= 'project_values.json') 
 
         #add clustering resolution
         with open('project_values.json') as f:
