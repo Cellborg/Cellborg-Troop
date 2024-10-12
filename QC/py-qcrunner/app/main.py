@@ -260,7 +260,7 @@ def dimentionality_reduction(s3_path):
     png_file2 = "./figures/pca.png"
     # Create S3 object key for quality control data
     s3_key = f"{s3_path}/QCpca.png"
-    upload_plot_to_s3("pca",s3_key,png_file2)
+    upload_plot_to_s3(s3_key,png_file2)
 
     print("----- nearest_neighbor_graph begins -----")
     sc.pp.neighbors(adata)
@@ -384,7 +384,7 @@ def initializeAdata(s3_singlets_path: str, datasets: list[str]):
         sample_adata = sc.read_h5ad("singlets.h5ad")
         adatas[sample_id] = sample_adata
         os.remove('singlets.h5ad')
-        print("removed file from s3")
+        print("removed file from local")
         #response = s3.get_object(Bucket= user_environment["qc_dataset_bucket"], Key=filepath)
         #print(f"Pulled {sample_id} from s3: ")
         #file_pulled = response['Body'].read()
