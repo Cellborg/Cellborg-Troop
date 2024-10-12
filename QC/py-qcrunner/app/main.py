@@ -490,6 +490,7 @@ async def initialize_project(initReq: initializeProjectRequest):
         global principle_components
 
         s3_path = f"{initReq.user}/{initReq.project}"
+        set_user_env()
         initializeAdata(s3_path, initReq.datasets)
         print('Successfully concatonated all datasets')
         normalize()
