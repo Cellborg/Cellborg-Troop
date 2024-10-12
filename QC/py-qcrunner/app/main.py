@@ -378,9 +378,11 @@ def initializeAdata(s3_singlets_path: str, datasets: list[str]):
     adatas={}
     for sample_id, filepath in samples.items():
         response = s3.get_object(Bucket= user_environment["qc_dataset_bucket"], Key=filepath)
-        print(f"Pulled ${sample_id} from s3: ")
-        print(response)
-        sample_adata = sc.read_h5ad(response['Body'])
+        print(f"Pulled {sample_id} from s3: ")
+        file_pulled = response['Body'].read()
+        print(file_pulled)
+        print(type(file_pulled))
+        sample_adata = sc.read_h5ad(response['Body'].read())
         #sample_adata.var_names_make_unique()
         adatas[sample_id] = sample_adata
     
