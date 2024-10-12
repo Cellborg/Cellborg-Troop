@@ -312,7 +312,7 @@ def clustering(s3_path, resolution):
     upload_plot_to_s3(targetfile,"./figures/umap2.png")
     resolution_global = resolution
     return (
-        adata.var_names, adata.obs[f"leiden_res_${resolution}"].cat.categories
+        adata.var_names, adata.obs[f"leiden_res_{resolution}"].cat.categories
     )
 
 
