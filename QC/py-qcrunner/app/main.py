@@ -377,9 +377,10 @@ def initializeAdata(s3_singlets_path: str, datasets: list[str]):
     samples={datasetId:s3_singlets_path+f"/{datasetId}/singlets.h5ad" for datasetId in datasets} 
     adatas={}
     for sample_id, filepath in samples.items():
-        with open("singlets.h5ad", "w") as f:
-            s3.download_fileobj(user_environment["qc_dataset_bucket"], filepath, f) 
-            print("downloaded filefrom s3")
+        s3.download_file(
+            Bucket = user_environment["qc_dataset_bucket"], 
+            Key = filepath, 
+            Filename= 'singlets.h5ad') 
         sample_adata = sc.read_h5ad("singlets.h5ad")
         adatas[sample_id] = sample_adata
         os.remove('singlets.h5ad')
