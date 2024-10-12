@@ -378,7 +378,9 @@ def initializeAdata(s3_singlets_path: str, datasets: list[str]):
     adatas={}
     for sample_id, filepath in samples.items():
         response = s3.get_object(Bucket= user_environment["qc_dataset_bucket"], Key=filepath)
-        sample_adata = sc.read_text(response['Body'].read().decode('utf-8'))
+        print(f"Pulled ${sample_id} from s3: ")
+        print(response)
+        sample_adata = sc.read_h5ad(response['Body'])
         #sample_adata.var_names_make_unique()
         adatas[sample_id] = sample_adata
     
@@ -413,7 +415,7 @@ async def do_pre_plot_qc(qcreq: QCPrePlotRequest):
                 "message": "QC Pre-Plot Completed Successfully"
                 }
     except Exception as err:
-        print(err)
+        print('ERROR: ',err)
         return {"success": False,
                 "message": err}
 
@@ -476,7 +478,7 @@ async def do_doublet_plot_qc(qcreq: QCDoublets):
             "message": "QC Completed Successfully",
             }
     except Exception as err:
-        print(err)
+        print('ERROR: ',err)
         return{"success": False,
                "message": err}
     
@@ -521,7 +523,7 @@ async def initialize_project(initReq: initializeProjectRequest):
         }
 
     except Exception as err:
-        print(err)
+        print('ERROR: ',err)
         return { 
             "success": False,
             "message": err
@@ -558,7 +560,7 @@ async def do_clustering(clustReq: clusteringRequest):
             "clusters": clustering
         }
     except Exception as err:
-        print(err)
+        print('ERROR: ',err)
         return {
             "success": False,
             "message": err
@@ -580,6 +582,7 @@ async def annotations(annoRequest: annoRequest):
             "message":"Annotatons successfully completed"
         }
     except Exception as err:
+        print('ERROR: ',err)
         return{
             "success":False,
             "message": err
