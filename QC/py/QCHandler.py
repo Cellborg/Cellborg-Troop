@@ -183,7 +183,7 @@ while True:
                     print(response)
             elif request_type == "annotations":
                 print("Beginning annotations now...")
-                anno = request_type['annotations']
+                anno = queen_service_request['annotations']
 
                 response = send_request("/annotations", {"user":user, "project":project, "annotations":anno})
                 if response['success']:
