@@ -543,7 +543,7 @@ async def initialize_project(initReq: initializeProjectRequest):
 async def do_clustering(clustReq: clusteringRequest):
     try:
         s3_path = f"{clustReq.user}/{clustReq.project}/project_values.json"
-        gene_names, clustering = clustering(s3_path, clustReq.resolution)
+        gene_names, clusters = clustering(s3_path, clustReq.resolution)
 
         #download old project_values file from s3
         s3.Bucket(user_environment["qc_dataset_bucket"]).download_file('project_values.json', s3_path)
@@ -567,7 +567,7 @@ async def do_clustering(clustReq: clusteringRequest):
             "success": True,
             "message": "Clustering successfully finished",
             "gene_names": gene_names,
-            "clusters": clustering
+            "clusters": clusters
         }
     except Exception as err:
         print('ERROR: ',err)
