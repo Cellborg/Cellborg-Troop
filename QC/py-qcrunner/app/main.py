@@ -583,11 +583,11 @@ async def do_clustering(clustReq: clusteringRequest):
         }
     
 @app.post("/annotations", status_code = 200)
-async def annotations(annoRequest: annoRequest):
+async def annotations(annotateRequest: annoRequest):
     global adata
     try:
         print("------Starting annotations")
-        cell_type_annotation(annoRequest.annotations)
+        cell_type_annotation(annotateRequest.annotations)
         #used to verify that annotations did work
         print("creating test png")
         sc.pl.umap(
@@ -596,7 +596,7 @@ async def annotations(annoRequest: annoRequest):
         legend_loc="on data",
         )
         print("uploading test png")
-        upload_plot_to_s3(f"{annoRequest.user}/{annoRequest.project}", "annotations_test.png")
+        upload_plot_to_s3(f"{annotateRequest.user}/{annotateRequest.project}", "annotations_test.png")
         return{
             "success":True,
             "message":"Annotatons successfully completed"
