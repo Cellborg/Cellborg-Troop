@@ -65,7 +65,7 @@ class annoRequest(BaseModel):
     user: str
     project: str
     resolution: float
-    annotations: object
+    annotations: list
 
 # variables in Global context
 user_environment = {}
