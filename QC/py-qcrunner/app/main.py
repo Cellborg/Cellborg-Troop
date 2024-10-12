@@ -64,7 +64,6 @@ class clusteringRequest(BaseModel):
 class annoRequest(BaseModel):
     user: str
     project: str
-    resolution: float
     annotations: list
 
 # variables in Global context
