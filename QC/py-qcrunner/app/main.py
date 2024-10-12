@@ -565,6 +565,8 @@ async def do_clustering(clustReq: clusteringRequest):
         #remove temp file locally
         os.remove("project_values.json")
 
+        clusters = clusters.to_list()
+        gene_names = gene_names.to_list()
         print(f"gene_names: {type(gene_names)}", gene_names)
         print(f"cluster: {type(clusters)}", clusters)
         return {
