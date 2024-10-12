@@ -355,7 +355,7 @@ def cell_type_annotation(annotations):
     global adata
     global resolution_global
 
-    adata.obs["cell_type_lvl1"] = adata.obs[f"leiden_res_{resolution_global}"].map(annotations)
+    adata.obs["cell_type_lvl1"] = adata.obs["leiden"].map(annotations)
 
 
 
