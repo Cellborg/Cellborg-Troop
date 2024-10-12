@@ -586,13 +586,17 @@ async def do_clustering(clustReq: clusteringRequest):
 async def annotations(annoRequest: annoRequest):
     global adata
     try:
+        print("------Starting annotations")
         cell_type_annotation(annoRequest.annotations)
         #used to verify that annotations did work
+        print("creating test png")
         sc.pl.umap(
         adata,
         color=["cell_type_lvl1"],
         legend_loc="on data",
         )
+        print("uploading test png")
+        upload_plot_to_s3(f"{annoRequest.user}/{annoRequest.project}", "annotations_test.png")
         return{
             "success":True,
             "message":"Annotatons successfully completed"
