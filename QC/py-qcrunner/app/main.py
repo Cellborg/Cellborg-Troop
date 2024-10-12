@@ -377,14 +377,21 @@ def initializeAdata(s3_singlets_path: str, datasets: list[str]):
     samples={datasetId:s3_singlets_path+f"/{datasetId}/singlets.h5ad" for datasetId in datasets} 
     adatas={}
     for sample_id, filepath in samples.items():
-        response = s3.get_object(Bucket= user_environment["qc_dataset_bucket"], Key=filepath)
-        print(f"Pulled {sample_id} from s3: ")
-        file_pulled = response['Body'].read()
-        print(file_pulled)
-        print(type(file_pulled))
-        sample_adata = sc.read_h5ad(response['Body'].read())
-        #sample_adata.var_names_make_unique()
+        with open("singlets.h5ad", "w") as f:
+            s3.download_fileobj(user_environment["qc_dataset_bucket"], filepath, f) 
+            print("downloaded filefrom s3")
+        sample_adata = sc.read_h5ad("singlets.h5ad")
         adatas[sample_id] = sample_adata
+        os.remove('singlets.h5ad')
+        print("removed file from s3")
+        #response = s3.get_object(Bucket= user_environment["qc_dataset_bucket"], Key=filepath)
+        #print(f"Pulled {sample_id} from s3: ")
+        #file_pulled = response['Body'].read()
+        #print(file_pulled)
+        #print(type(file_pulled))
+        #sample_adata = sc.read_h5ad(file_pulled)
+        #sample_adata.var_names_make_unique()
+        #adatas[sample_id] = sample_adata
     
     adata = ad.concat(adatas, label="sample")
     adata.obs_names_make_unique()
