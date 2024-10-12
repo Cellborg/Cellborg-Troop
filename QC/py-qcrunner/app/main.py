@@ -312,7 +312,7 @@ def clustering(s3_path, resolution):
     upload_plot_to_s3(targetfile,"./figures/umap2.png")
     resolution_global = resolution
     return (
-        adata.var_names, adata.obs[f"leiden_res_{resolution}"].cat.categories
+        adata.var_names, adata.obs["leiden"].cat.categories
     )
 
 
@@ -542,7 +542,7 @@ async def initialize_project(initReq: initializeProjectRequest):
 @app.post("/clustering", status_code=200)
 async def do_clustering(clustReq: clusteringRequest):
     try:
-        s3_path = f"{clustReq.user}/{clustReq.project}/project_values.json"
+        s3_path = f"{clustReq.user}/{clustReq.project}"
         gene_names, clusters = clustering(s3_path, clustReq.resolution)
 
         #download old project_values file from s3
@@ -556,7 +556,7 @@ async def do_clustering(clustReq: clusteringRequest):
         print("Added clustering resolution to project values")
         
         #upload updated file to s3
-        upload_plot_to_s3(f's3_path+/project_values.json','project_values.json')
+        upload_plot_to_s3(f"{s3_path}/project_values.json",'project_values.json')
         print("uploaded new project values to s3")
         
         #remove temp file locally
