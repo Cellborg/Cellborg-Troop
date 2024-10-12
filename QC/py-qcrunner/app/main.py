@@ -380,7 +380,7 @@ def initializeAdata(s3_singlets_path: str, datasets: list[str]):
         response = s3.get_object(Bucket= user_environment["qc_dataset_bucket"], Key=filepath)
         sample_adata = sc.read_text(response['Body'].read().decode('utf-8'))
         #sample_adata.var_names_make_unique()
-        adata[sample_id] = sample_adata
+        adatas[sample_id] = sample_adata
     
     adata = ad.concat(adatas, label="sample")
     adata.obs_names_make_unique()

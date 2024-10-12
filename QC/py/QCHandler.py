@@ -54,11 +54,11 @@ while True:
             request_type = queen_service_request["requestType"]
             project = queen_service_request["project"]
             user = queen_service_request["user"]
-            dataset = queen_service_request["dataset"]
 
             #preplot qc being parsed here
             if request_type == "QCPrePlot":
                 
+                dataset = queen_service_request["dataset"]
                 species_mt = queen_service_request["mt"]
                 qc_request = {
                     "user": user, 
@@ -86,6 +86,7 @@ while True:
                 else:
                     print(f"Error in QC: {response.get('message')}")
             elif request_type == "QCDoublet":
+                dataset = queen_service_request["dataset"]
                 countMax = queen_service_request["countMax"]
                 countMin = queen_service_request["countMin"]
                 geneMax = queen_service_request["geneMax"]
