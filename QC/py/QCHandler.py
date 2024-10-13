@@ -184,7 +184,7 @@ while True:
             elif request_type == "annotations":
                 print("Beginning annotations now...")
                 anno = queen_service_request['annotations']
-                response = send_request("/annotations", {"user":user, "project":project, "annotations":json.dumps(anno)})
+                response = send_request("/annotations", {"user":user, "project":project, "annotations":anno})
                 if response['success']:
                     print("Annotations happened successfully")
                     data = {

@@ -586,7 +586,7 @@ async def annotations(annotateRequest: annoRequest):
     global adata
     #try:
     print("------Starting annotations")
-    annotations_dict = json.load(annotateRequest.annotations)
+    annotations_dict = {str(i): annotateRequest.annotations[i] for i in range(len(annotateRequest.annotations))}
     cell_type_annotation(annotations_dict)
     #used to verify that annotations did work
     print("creating test png")
