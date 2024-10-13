@@ -64,7 +64,7 @@ class clusteringRequest(BaseModel):
 class annoRequest(BaseModel):
     user: str
     project: str
-    annotations: list
+    annotations: object
 
 # variables in Global context
 user_environment = {}
@@ -586,8 +586,8 @@ async def annotations(annotateRequest: annoRequest):
     global adata
     #try:
     print("------Starting annotations")
-    annotations_dict = {str(i): annotateRequest.annotations[i] for i in range(len(annotateRequest.annotations))}
-    cell_type_annotation(annotations_dict)
+    #annotations_dict = {str(i): annotateRequest.annotations[i] for i in range(len(annotateRequest.annotations))}
+    cell_type_annotation(annotateRequest.annotations)
     #used to verify that annotations did work
     print("creating test png")
     sc.pl.umap(
