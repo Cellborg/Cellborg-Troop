@@ -584,28 +584,29 @@ async def do_clustering(clustReq: clusteringRequest):
 @app.post("/annotations", status_code = 200)
 async def annotations(annotateRequest: annoRequest):
     global adata
-    try:
-        print("------Starting annotations")
-        cell_type_annotation(annotateRequest.annotations)
-        #used to verify that annotations did work
-        print("creating test png")
-        sc.pl.umap(
-        adata,
-        color=["cell_type_lvl1"],
-        legend_loc="on data",
-        )
-        print("uploading test png")
-        upload_plot_to_s3(f"{annotateRequest.user}/{annotateRequest.project}", "annotations_test.png")
-        return{
-            "success":True,
-            "message":"Annotatons successfully completed"
-        }
-    except Exception as err:
-        print('ERROR: ',err)
-        return{
-            "success":False,
-            "message": err
-        }
+    #try:
+    print("------Starting annotations")
+    annotations_dict = json.load(annotateRequest.annotations)
+    cell_type_annotation(annotations_dict)
+    #used to verify that annotations did work
+    print("creating test png")
+    sc.pl.umap(
+    adata,
+    color=["cell_type_lvl1"],
+    legend_loc="on data",
+    )
+    print("uploading test png")
+    upload_plot_to_s3(f"{annotateRequest.user}/{annotateRequest.project}", "annotations_test.png")
+    return{
+        "success":True,
+        "message":"Annotatons successfully completed"
+    }
+    #except Exception as err:
+    #    print('ERROR: ',err)
+    #    return{
+    #        "success":False,
+    #        "message": err
+    #    }
 
 #@app.post("/qc_finish_doublet_endpoint", status_code = 200)
 #async def finish_doublet(qcreq: QCFinish):
