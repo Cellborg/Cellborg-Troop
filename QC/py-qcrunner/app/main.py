@@ -594,9 +594,10 @@ async def annotations(annotateRequest: annoRequest):
     adata,
     color=["cell_type_lvl1"],
     legend_loc="on data",
+    save = "annotations_test.png"
     )
     print("uploading test png")
-    upload_plot_to_s3(f"{annotateRequest.user}/{annotateRequest.project}", "annotations_test.png")
+    upload_plot_to_s3(f"{annotateRequest.user}/{annotateRequest.project}", "umapannotations_test.png")
     return{
         "success":True,
         "message":"Annotatons successfully completed"
