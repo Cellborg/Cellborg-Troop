@@ -36,7 +36,7 @@ def send_shutdown_request():
         print("Connection was closed by the server (expected behavior during shutdown).")
     except requests.RequestException as e:
         print(f"An error occurred: {e}")
-MAX_COUNT = 10800
+MAX_COUNT = 10
 currentCount=0
 while True:
     
@@ -54,7 +54,7 @@ while True:
         if currentCount%10==0:
             print(currentCount)
         continue
-    
+
     for message in response['Messages']:
         
         try:
