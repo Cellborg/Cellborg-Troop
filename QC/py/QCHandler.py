@@ -36,15 +36,25 @@ def send_shutdown_request():
         print("Connection was closed by the server (expected behavior during shutdown).")
     except requests.RequestException as e:
         print(f"An error occurred: {e}")
+MAX_COUNT = 10800
+currentCount=0
 while True:
     
     response = client.receive_message(QueueUrl=queue_url, MaxNumberOfMessages=10, WaitTimeSeconds=10, VisibilityTimeout=900)
     print("queueurl=",queue_url)
     print(response)
+
+    if currentCount>= MAX_COUNT:
+        print("Server hashit timeout, shutting down...")
+        send_shutdown_request()
+
     if 'Messages' not in response:
         print("No Message in ",queue_url, "topic:",SNS_TOPIC)
+        currentCount+=1
+        if currentCount%10==0:
+            print(currentCount)
         continue
-
+    
     for message in response['Messages']:
         
         try:

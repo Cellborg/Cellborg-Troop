@@ -265,10 +265,6 @@ def dimentionality_reduction(s3_path):
     sc.pp.neighbors(adata)
     # This graph can then be embedded in two dimensions for visualiztion with UMAP (McInnes et al., 2018):
     adata = sc.tl.umap(adata, key_added = "test", copy=True)
-    print("------ Coordinates of UMAP here ----------")
-    print(adata.obsm["test"])
-    print("------ UMAP params here --------")
-    print(adata.uns["test"])
     # We can now visualize the UMAP according to the `sample`. 
     sc.pl.umap(
         adata,
