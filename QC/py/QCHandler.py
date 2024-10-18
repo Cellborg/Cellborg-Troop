@@ -36,7 +36,7 @@ def send_shutdown_request():
         print("Connection was closed by the server (expected behavior during shutdown).")
     except requests.RequestException as e:
         print(f"An error occurred: {e}")
-MAX_COUNT = 10
+MAX_COUNT = 3*60*60 #timeout after three hours
 currentCount=0
 while True:
     
@@ -46,6 +46,7 @@ while True:
 
     if currentCount>= MAX_COUNT:
         print("Server hashit timeout, shutting down...")
+        #TODO send some kind of message to user notifying them of shutdown
         send_shutdown_request()
 
     if 'Messages' not in response:
