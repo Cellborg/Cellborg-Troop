@@ -94,7 +94,19 @@ while True:
                 
             if request_type == "annotations":
                 print("Beginning annotations now...")
+                anno = request_type['annotations']
+
+                response = send_request("/annotations", {"user":user, "project":project, "annotations":anno})
+                if response['success']:
+                    print("Annotations happened successfully")
+                    data = {
+                        "user":user,
+                        "project":project,
+                        "completed_step":"Annotations"
+                    }
                 
+                    response = send_sns(data)
+                    print(response)
             else:
                 print("Invalid Request Type: ", request_type)
             

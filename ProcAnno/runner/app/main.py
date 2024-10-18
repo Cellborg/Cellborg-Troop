@@ -7,6 +7,7 @@ import scanpy as sc
 import anndata as ad
 import pandas as pd
 import hdf5plugin
+import json
 
 
 app = FastAPI()
@@ -19,12 +20,21 @@ class initializeProjectRequest(BaseModel):
 class clusteringRequest(BaseModel):
     user: str
     project: str
-    resolution: int
+    resolution: float
+
+class annoRequest(BaseModel):
+    user: str
+    project: str
+    resolution: float
+    annotations: object
 
 # variables in Global context
 user_environment = {}
 adata = None
 s3_client = boto3.client("s3") #may need to add access_key_id and secret_access_key
+resolution_global= 0.0
+
+principle_components=50
 
 # set bucket values depending on the environment
 def set_user_env():
@@ -51,7 +61,7 @@ def set_user_env():
 def upload_to_s3(type, s3_key, localfile):
     # Upload the JSON data to S3
     if type=="pca":
-        s3_client.upload_file(localfile, user_environment['pca_bucket'], s3_key, Callback=print)
+        s3_client.upload_file(localfile, user_environment['qc_dataset_bucket'], s3_key, Callback=print)
     print(f"Uploaded plot png to S3: {s3_key}")
 
 def initializeAdata(s3_singlets_path: str, datasets: list[str]):
@@ -89,6 +99,7 @@ def feature_selection():
 
 def dimentionality_reduction(s3_path):
     global adata
+    global principle_components
     # ## Dimensionality Reduction
     # Reduce the dimensionality of the data by running principal component analysis (PCA), which reveals the main axes of variation and denoises the data.
     print("------- dimentionality reduction begins ------")
@@ -96,17 +107,16 @@ def dimentionality_reduction(s3_path):
 
     #find ideal number of principle components
     df = adata.uns["pca"]['variance_ratio'].cumsum(axis=0)
-    n_pcs = 50
     if df[-1] < 0.95:
         print("use 50")
     else:
         for num in range(len(df)):
             if df[num] >=0.95:
-                n_pcs = num+1
+                principle_components = num+1
                 break
                 
     # Let us inspect the contribution of single PCs to the total variance in the data. This gives us information about how many PCs we should consider in order to compute the neighborhood relations of cells, e.g. used in the clustering function {func}`~scanpy.tl.leiden` or {func}`~scanpy.tl.tsne`. In our experience, there does not seem to be signifigant downside to overestimating the numer of principal components.
-    sc.pl.pca_variance_ratio(adata, n_pcs=n_pcs, log=True, save=".png")
+    sc.pl.pca_variance_ratio(adata, n_pcs=principle_components, log=True, save=".png")
     png_file1 = "./figures/pca_variance_ratio.png"
         # Create S3 object key for quality control data
     s3_key = f"{s3_path}/QCpca_variance_ratio.png"
@@ -142,6 +152,7 @@ def dimentionality_reduction(s3_path):
     upload_to_s3(targetfile,"./figures/umap1.png")
 def clustering(s3_path, resolution):
     global adata
+    global resolution_global
 
 # ## Clustering
 # 
@@ -153,52 +164,29 @@ def clustering(s3_path, resolution):
     sc.pl.umap(adata, color=["leiden"], save="2.png")
     targetfile=f"{s3_path}/QCclustering.png"
     upload_to_s3(targetfile,"./figures/umap2.png")
+    resolution_global = resolution
     return (
-        adata.var_names, adata.obs['leiden'].cat.categories
+        adata.var_names, adata.obs[f"leiden_res_${resolution}"].cat.categories
     )
 
 
-def cell_type_annotation(s3_path):
+def cell_type_annotation(annotations):
     global adata
-    # ## Manual cell-type annotation
+    global resolution_global
 
-# :::{note}
-# This section of the tutorial is expanded upon using prior knowledge resources like automated assignment and gene enrichment in the scverse tutorial [here](https://scverse-tutorials.readthedocs.io/en/latest/notebooks/basic-scrna-tutorial.html#cell-type-annotation)
-# :::
+    adata.obs["cell_type_lvl1"] = adata.obs[f"leiden_res_${resolution_global}"].map(annotations)
 
-# Cell type annotation is laborous and repetitive task, one which typically requires multiple rounds of subclustering and re-annotation. It's difficult to show the entirety of the process in this tutorial, but we aim to show how the tools scanpy provides assist in this process.
-
-# We have now reached a point where we have obtained a set of cells with decent quality, and we can proceed to their annotation to known cell types. Typically, this is done using genes that are exclusively expressed by a given cell type, or in other words these genes are the marker genes of the cell types, and are thus used to distinguish the heterogeneous groups of cells in our data. Previous efforts have collected and curated various marker genes into available resources, such as [CellMarker](http://bio-bigdata.hrbmu.edu.cn/CellMarker/), [TF-Marker](http://bio.liclab.net/TF-Marker/), and [PanglaoDB](https://panglaodb.se/). The [cellxgene gene expression tool](https://cellxgene.cziscience.com/gene-expression) can also be quite useful to see which cell types a gene has been expressed in across many existing datasets.
-
-# Commonly and classically, cell type annotation uses those marker genes subsequent to the grouping of the cells into clusters. So, let's generate a set of clustering solutions which we can then use to annotate our cell types. Here, we will use the Leiden clustering algorithm which will extract cell communities from our nearest neighbours graph.
-    for res in [0.02, 0.5, 2.0]:
-        sc.tl.leiden(
-            adata, key_added=f"leiden_res_{res:4.2f}", resolution=res, flavor="igraph"
-        )
-    # Notably, the number of clusters that we define is largely arbitrary, and so is the `resolution` parameter that we use to control for it. As such, the number of clusters is ultimately bound to the stable and biologically-meaningful groups that we can ultimately distringuish, typically done by experts in the corresponding field or by using expert-curated prior knowledge in the form of markers.
-    sc.pl.umap(
-        adata,
-        color=["leiden_res_0.02", "leiden_res_0.50", "leiden_res_2.00"],
-        legend_loc="on data",
-        save="5.png",
-    )
-    targetfile=f"{s3_path}/QCcelltype-annotation-1.png"
-    upload_to_s3(targetfile,"./figures/umap5.png")
-
-    sc.pl.umap(
-        adata,
-        color=["leiden_res_0.02", "leiden_res_0.50", "leiden_res_2.00"],
-        legend_loc="on data",
-        save="6.png",
-    )
-    targetfile=f"{s3_path}/QCcelltype-annotation-2.png"
-    upload_to_s3(targetfile,"./figures/umap6.png")
+def upload_plot_to_s3(s3_key, localfile):
+    # Upload the JSON data to S3
+    s3_client.upload_file(localfile, user_environment['qc_dataset_bucket'], s3_key, Callback=print)
+    print(f"Uploaded plot png to S3: {s3_key}")
 
 @app.post("/init_endpoint", status_code=200)
 async def initialize_project(initReq: initializeProjectRequest):
     try:
         global adata
         global user_environment
+        global principle_components
 
         s3_path = f"{initReq.user}/{initReq.project}"
         set_user_env()
@@ -210,7 +198,21 @@ async def initialize_project(initReq: initializeProjectRequest):
         print('Successfully selected features')
         dimentionality_reduction(s3_path)
         print('Successfully reduced dimensions')
+        
+        #create project_values.json in proj dir
+        numpcs = {
+            "num_pcs":principle_components
+        }
+        with open("project_values.json", "w") as outputfile:
+            json.dump(numpcs, outputfile)
+        print("created project_values.json file")
 
+        input_var_path = f"{initReq.user}/{initReq.project}/project_values.json"
+        upload_plot_to_s3(input_var_path, 'project_values.json')
+        print("uploaded project_values.json file to s3")
+
+        os.remove("project_values.json")
+        print("project_values.json file successfully deleted")
 
         return{
             "success": True,
@@ -226,8 +228,27 @@ async def initialize_project(initReq: initializeProjectRequest):
 @app.post("/clustering", status_code=200)
 async def do_clustering(clustReq: clusteringRequest):
     try:
-        s3_path = f"{clustReq.user}/{clustReq.project}"
+        s3_path = f"{clustReq.user}/{clustReq.project}/project_values.json"
         gene_names, clustering = clustering(s3_path, clustReq.resolution)
+
+        #download old project_values file from s3
+        s3_client.Bucket(user_environment["qc_dataset_bucket"]).download_file('project_values.json', s3_path)
+
+        #add clustering resolution
+        with open('project_values.json') as f:
+            data = json.load(f)
+            data['clust_resolution'] = clustReq.resolution
+            json.dump(data, f)
+        print("Added clustering resolution to project values")
+        
+        #upload updated file to s3
+        upload_plot_to_s3(f's3_path+/project_values.json','project_values.json')
+        print("uploaded new project values to s3")
+        
+        #remove temp file locally
+        os.remove("project_values.json")
+
+
         return {
             "success": True,
             "message": "Clustering successfully finished",
@@ -240,5 +261,15 @@ async def do_clustering(clustReq: clusteringRequest):
             "success": False,
             "message": err
         }
-        
+
+@app.post("/annotations", status_code = 200)
+async def annotations(annoRequest: annoRequest):
+    global adata
+    cell_type_annotation(annoRequest.annotations)
+    #used to verify that annotations did work
+    sc.pl.umap(
+    adata,
+    color=["cell_type_lvl1"],
+    legend_loc="on data",
+    )
 

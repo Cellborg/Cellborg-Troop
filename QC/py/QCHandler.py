@@ -54,11 +54,11 @@ while True:
             request_type = queen_service_request["requestType"]
             project = queen_service_request["project"]
             user = queen_service_request["user"]
-            dataset = queen_service_request["dataset"]
 
             #preplot qc being parsed here
             if request_type == "QCPrePlot":
                 
+                dataset = queen_service_request["dataset"]
                 species_mt = queen_service_request["mt"]
                 qc_request = {
                     "user": user, 
@@ -86,6 +86,7 @@ while True:
                 else:
                     print(f"Error in QC: {response.get('message')}")
             elif request_type == "QCDoublet":
+                dataset = queen_service_request["dataset"]
                 countMax = queen_service_request["countMax"]
                 countMin = queen_service_request["countMin"]
                 geneMax = queen_service_request["geneMax"]
@@ -149,7 +150,51 @@ while True:
             #        print(response)
             #    else:
             #        print(f"Error in QC: {response.get('message')}")
-            
+            elif request_type == "initializeProject":
+                print("Initializing annData object")
+                datasets = queen_service_request["datasets"]
+
+                response = send_request('/init_endpoint', {"user": user, "project": project, "datasets": datasets})
+                if response["success"]:
+                    print("Initializing Project Successful... Sending SNS message")
+                    project_initialized = True
+                    data = {
+                        "user": user, 
+                        "project": project, 
+                        "stage": "initialized"
+                    }
+                    response = send_sns(data)
+                    print(response)
+            elif request_type == "clustering":
+                print("Beginning clustering now...")
+                resolution = queen_service_request['resolution']
+
+                response = send_request('/clustering', {"user":user, "project":project, "resolution":resolution})
+                if response['success']:
+                    print("Clustering was successful...")
+                    data = {
+                        "user":user,
+                        "project":project,
+                        "geneNames": response["gene_names"],
+                        "clusters": response["clusters"],
+                        "stage":"cluster"
+                    }
+                    response = send_sns(data)
+                    print(response)
+            elif request_type == "annotations":
+                print("Beginning annotations now...")
+                anno = queen_service_request['annotations']
+                response = send_request("/annotations", {"user":user, "project":project, "annotations":anno})
+                if response['success']:
+                    print("Annotations happened successfully")
+                    data = {
+                        "user":user,
+                        "project":project,
+                        "stage":"annotations"
+                    }
+                
+                    response = send_sns(data)
+                    print(response)
             elif request_type == "killServer":
 
                 print("Shutting down the R QC server...")
