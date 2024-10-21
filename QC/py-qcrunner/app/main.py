@@ -170,7 +170,7 @@ def voilin_plot():
         ["n_genes_by_counts", "total_counts", "pct_counts_mt"],
         jitter=0.4,
         multi_panel=True,
-        return_fig=True,
+        show=False
     )
 
     png_file = "./figures/violin.png"
