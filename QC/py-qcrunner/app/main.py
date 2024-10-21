@@ -178,11 +178,13 @@ def voilin_plot():
     print("-------TESTING-------")
     import imageio
     import plotly.express as px
+
     img = imageio.imread(png_file)
     binary_img = (img > 128).astype(int)
-    binary_series = binary_img.flatten()
-    print(binary_series)
-    fig = px.imshow(binary_series, binary_string=True)
+    #binary_series = binary_img.flatten()
+    #print(binary_series)
+
+    fig = px.imshow(binary_img, binary_string=True)
     #for now write to s3 to test
     fig.write_image("plotly_test.png")
     upload_plot_to_s3(f"{s3_plots_dir}/plotly_test.png", "plotly_test.png")
