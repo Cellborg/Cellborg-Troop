@@ -165,12 +165,12 @@ def voilin_plot():
     # * the percentage of counts in mitochondrial genes
     # saves violin image file as violin.png, copy this to S3 under plots folder.
     print("------ voilin_plot begins -------")
-    sc.pl.violin(
+    fig = sc.pl.violin(
         adata,
         ["n_genes_by_counts", "total_counts", "pct_counts_mt"],
         jitter=0.4,
         multi_panel=True,
-        save=".png",
+        return_fig=True,
     )
 
     png_file = "./figures/violin.png"
