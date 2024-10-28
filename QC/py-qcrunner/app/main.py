@@ -167,6 +167,7 @@ def voilin_plot():
     print("------ voilin_plot begins -------")
 
     print("Creating violin df")
+    print(adata.obs.columns)
     data_df = adata.obs["n_genes", "total_counts", "pct_counts_mt"]
 
     print("Creating violin json")
@@ -185,7 +186,7 @@ def voilin_plot():
 
     print("removing temp json file")
     os.remove("highcharts_data.json")
-    
+
     #sc.pl.violin(
     #    adata,
     #    ["n_genes_by_counts", "total_counts", "pct_counts_mt"],
