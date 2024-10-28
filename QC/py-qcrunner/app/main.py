@@ -165,19 +165,40 @@ def voilin_plot():
     # * the percentage of counts in mitochondrial genes
     # saves violin image file as violin.png, copy this to S3 under plots folder.
     print("------ voilin_plot begins -------")
-    sc.pl.violin(
-        adata,
-        ["n_genes_by_counts", "total_counts", "pct_counts_mt"],
-        jitter=0.4,
-        multi_panel=True,
-        save=".png",
-    )
 
-    png_file = "./figures/violin.png"
+    print("Creating violin df")
+    data_df = adata.obs["n_genes", "total_counts", "pct_counts_mt"]
+
+    print("Creating violin json")
+    data_for_highcharts = {
+        index:{
+                "n_genes":row['n_genes'],
+                "total_counts": row["total_counts"],
+                "pct_counts_mt":row["pct_counts_mt"]
+        }
+        for index, row in data_df.iterrows()
+    }
+    print("uploading json file")
+    with open("highcharts_data.json", "w") as f:
+        json.dump(data_for_highcharts, f, indent=4)
+    upload_plot_to_s3(f"{s3_plots_dir}/QCViolinPlot.json", "highcharts_data.json")
+
+    print("removing temp json file")
+    os.remove("highcharts_data.json")
+    
+    #sc.pl.violin(
+    #    adata,
+    #    ["n_genes_by_counts", "total_counts", "pct_counts_mt"],
+    #    jitter=0.4,
+    #    multi_panel=True,
+    #    save=".png",
+    #)
+
+    #png_file = "./figures/violin.png"
 
     # Create S3 object key for quality control data
-    s3_key = f"{s3_plots_dir}/QcViolinPlot.png"
-    upload_plot_to_s3(s3_key,png_file)
+    #s3_key = f"{s3_plots_dir}/QcViolinPlot.png"
+    #upload_plot_to_s3(s3_key,png_file)
 
 def scatter_plot():
     global adata
