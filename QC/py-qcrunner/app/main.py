@@ -600,7 +600,7 @@ async def do_clustering(clustReq: clusteringRequest):
         print('ERROR: ',err)
         return {
             "success": False,
-            "message": err
+            "message": str(err)
         }
     
 @app.post("/annotations", status_code = 200)
