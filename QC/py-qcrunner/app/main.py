@@ -562,46 +562,46 @@ async def initialize_project(initReq: initializeProjectRequest):
     
 @app.post("/clustering", status_code=200)
 async def do_clustering(clustReq: clusteringRequest):
-    try:
-        s3_path = f"{clustReq.user}/{clustReq.project}"
-        gene_names, clusters = clustering(s3_path, clustReq.resolution)
+    #try:
+    s3_path = f"{clustReq.user}/{clustReq.project}"
+    gene_names, clusters = clustering(s3_path, clustReq.resolution)
 
-        #download old project_values file from s3
-        s3.download_file(
-            Bucket = user_environment["qc_dataset_bucket"], 
-            Key = s3_path+'/project_values.json', 
-            Filename= 'project_values.json') 
+    #download old project_values file from s3
+    s3.download_file(
+        Bucket = user_environment["qc_dataset_bucket"], 
+        Key = s3_path+'/project_values.json', 
+        Filename= 'project_values.json') 
 
-        #add clustering resolution
-        with open('project_values.json', "r+") as f:
-            data = json.load(f)
-            data['clust_resolution'] = clustReq.resolution
-            json.dump(data, f)
-        print("Added clustering resolution to project values")
-        
-        #upload updated file to s3
-        upload_plot_to_s3(f"{s3_path}/project_values.json",'project_values.json')
-        print("uploaded new project values to s3")
-        
-        #remove temp file locally
-        os.remove("project_values.json")
+    #add clustering resolution
+    with open('project_values.json', "r+") as f:
+        data = json.load(f)
+        data['clust_resolution'] = clustReq.resolution
+        json.dump(data, f)
+    print("Added clustering resolution to project values")
+    
+    #upload updated file to s3
+    upload_plot_to_s3(f"{s3_path}/project_values.json",'project_values.json')
+    print("uploaded new project values to s3")
+    
+    #remove temp file locally
+    os.remove("project_values.json")
 
-        clusters = clusters.to_list()
-        gene_names = gene_names.to_list()
-        print(f"gene_names: {type(gene_names)}", gene_names)
-        print(f"cluster: {type(clusters)}", clusters)
-        return {
-            "success": True,
-            "message": "Clustering successfully finished",
-            "gene_names": gene_names,
-            "clusters": clusters
-        }
-    except Exception as err:
-        print('ERROR: ',err)
-        return {
-            "success": False,
-            "message": str(err)
-        }
+    clusters = clusters.to_list()
+    gene_names = gene_names.to_list()
+    print(f"gene_names: {type(gene_names)}", gene_names)
+    print(f"cluster: {type(clusters)}", clusters)
+    return {
+        "success": True,
+        "message": "Clustering successfully finished",
+        "gene_names": gene_names,
+        "clusters": clusters
+    }
+    #except Exception as err:
+    #    print('ERROR: ',err)
+    #    return {
+    #        "success": False,
+    #        "message": str(err)
+    #    }
     
 @app.post("/annotations", status_code = 200)
 async def annotations(annotateRequest: annoRequest):
