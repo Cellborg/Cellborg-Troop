@@ -168,7 +168,7 @@ def voilin_plot():
 
     print("Creating violin df")
     print(adata.obs.columns)
-    data_df = adata.obs["n_genes_by_counts", "total_counts", "pct_counts_mt"]
+    data_df = adata.obs[["n_genes", "total_counts", "pct_counts_mt"]]
 
     print("Creating violin json")
     data_for_highcharts = {
