@@ -141,10 +141,10 @@ def read_10x_mtx():
     except:
         adata = sc.read_mtx(f'{workspace_path}/matrix.mtx')
         adata_bc=pd.read_csv(f'{workspace_path}/barcodes.tsv',header=None)
-        adata_features=pd.read_csv(f'{workspace_path}/features.tsv',header=None)
+        adata_features=pd.read_csv(f'{workspace_path}/features.tsv',header=None, delimiter = '\t')
         adata= adata.T
         adata.obs['cell_id']= adata_bc
-        adata.var['gene_name']= adata_features[0].tolist()
+        adata.var['gene_name'] = adata_features[1].values
         adata.var.index= adata.var['gene_name']
 
         return adata
