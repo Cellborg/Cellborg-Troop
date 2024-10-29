@@ -1,13 +1,12 @@
 import signal
 from fastapi import FastAPI, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 import os
 import boto3
 import scanpy as sc
 import anndata as ad
 import pandas as pd
-import hdf5plugin
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 
 app = FastAPI()
@@ -437,32 +436,32 @@ app = FastAPI()
 
 @app.post("/qc_pre_plot_endpoint", status_code = 200)
 async def do_pre_plot_qc(qcreq: QCPrePlotRequest):
-    #try:
-    t1=datetime.now()
-    global adata
-    global s3_plots_dir
+    try:
+        t1=datetime.now()
+        global adata
+        global s3_plots_dir
 
-    s3_plots_dir = f"{qcreq.user}/{qcreq.project}/{qcreq.dataset}/plots"
-    print_time("[load_dataset_from_s3]")
-    set_user_env()
-    load_dataset(qcreq)
-    adata = read_10x_mtx()
-    print_time("[calculate_qc_metrics]")
-    calculate_qc_metrics(qcreq.mt)
-    print_time("[generate_plots]")
-    voilin_plot()
-    
-    t2=datetime.now()
-    time_elapsed=t2-t1
-    #date_time = time_elapsed.strftime("%m/%d/%Y, %H:%M:%S")
-    print("[time_elapsed]: %s" % time_elapsed)
-    return {"success": True,
-            "message": "QC Pre-Plot Completed Successfully"
-            }
-    #except Exception as err:
-    #    print('ERROR: ',err)
-    #    return {"success": False,
-    #            "message": err}
+        s3_plots_dir = f"{qcreq.user}/{qcreq.project}/{qcreq.dataset}/plots"
+        print_time("[load_dataset_from_s3]")
+        set_user_env()
+        load_dataset(qcreq)
+        adata = read_10x_mtx()
+        print_time("[calculate_qc_metrics]")
+        calculate_qc_metrics(qcreq.mt)
+        print_time("[generate_plots]")
+        voilin_plot()
+        
+        t2=datetime.now()
+        time_elapsed=t2-t1
+        #date_time = time_elapsed.strftime("%m/%d/%Y, %H:%M:%S")
+        print("[time_elapsed]: %s" % time_elapsed)
+        return {"success": True,
+                "message": "QC Pre-Plot Completed Successfully"
+                }
+    except Exception as err:
+        print('ERROR: ',err)
+        return {"success": False,
+                "message": str(err)}
 
 @app.post("/qc_doublet_endpoint", status_code=200)
 async def do_doublet_plot_qc(qcreq: QCDoublets):
@@ -525,7 +524,7 @@ async def do_doublet_plot_qc(qcreq: QCDoublets):
     except Exception as err:
         print('ERROR: ',err)
         return{"success": False,
-               "message": err}
+               "message": str(err)}
     
 #------------------- Processing & Annotations-----------------
 
@@ -571,7 +570,7 @@ async def initialize_project(initReq: initializeProjectRequest):
         print('ERROR: ',err)
         return { 
             "success": False,
-            "message": err
+            "message": str(err)
         }
     
 @app.post("/clustering", status_code=200)
@@ -620,30 +619,30 @@ async def do_clustering(clustReq: clusteringRequest):
 @app.post("/annotations", status_code = 200)
 async def annotations(annotateRequest: annoRequest):
     global adata
-    #try:
-    print("------Starting annotations")
-    #annotations_dict = {str(i): annotateRequest.annotations[i] for i in range(len(annotateRequest.annotations))}
-    cell_type_annotation(annotateRequest.annotations)
-    #used to verify that annotations did work
-    print("creating test png")
-    sc.pl.umap(
-    adata,
-    color=["cell_type_lvl1"],
-    legend_loc="on data",
-    save = "annotations_test.png"
-    )
-    print("uploading test png")
-    upload_plot_to_s3(f"{annotateRequest.user}/{annotateRequest.project}/annotations_test.png", "./figures/umapannotations_test.png")
-    return{
-        "success":True,
-        "message":"Annotatons successfully completed"
-    }
-    #except Exception as err:
-    #    print('ERROR: ',err)
-    #    return{
-    #        "success":False,
-    #        "message": err
-    #    }
+    try:
+        print("------Starting annotations")
+        #annotations_dict = {str(i): annotateRequest.annotations[i] for i in range(len(annotateRequest.annotations))}
+        cell_type_annotation(annotateRequest.annotations)
+        #used to verify that annotations did work
+        print("creating test png")
+        sc.pl.umap(
+        adata,
+        color=["cell_type_lvl1"],
+        legend_loc="on data",
+        save = "annotations_test.png"
+        )
+        print("uploading test png")
+        upload_plot_to_s3(f"{annotateRequest.user}/{annotateRequest.project}/annotations_test.png", "./figures/umapannotations_test.png")
+        return{
+            "success":True,
+            "message":"Annotatons successfully completed"
+        }
+    except Exception as err:
+        print('ERROR: ',err)
+        return{
+            "success":False,
+            "message": str(err)
+        }
 
 #@app.post("/qc_finish_doublet_endpoint", status_code = 200)
 #async def finish_doublet(qcreq: QCFinish):
@@ -664,7 +663,7 @@ async def annotations(annotateRequest: annoRequest):
 #    except Exception as err:
 #        print(err)
 #        return{"success": False,
-#               "message": err}
+#               "message": str(err)}
 
 
 #@app.post("/qc_endpoint", status_code=200)
