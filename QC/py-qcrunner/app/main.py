@@ -108,6 +108,7 @@ def set_user_env():
 # TODO: change /tmp to something else as this might cause problems.
 
 def load_dataset(qcreq):
+    global workspace_path
     # Load dataset and create Seurat object
     print("Loading dataset and creating Seurat object")
     prefix = f"{qcreq.user}/{qcreq.project}/{qcreq.dataset}/"
@@ -129,12 +130,25 @@ def load_dataset(qcreq):
 
 # load dataset files create AnnData object
 def read_10x_mtx():
-    adata = sc.read_10x_mtx(
-    workspace_path,  # the directory with the `.mtx` file
-    var_names="gene_symbols",  # use gene symbols for the variable names (variables-axis index)
-    cache=True,  # write a cache file for faster subsequent reading
-    )
-    return adata
+    global workspace_path
+    try:
+        adata = sc.read_10x_mtx(
+        workspace_path,  # the directory with the `.mtx` file
+        var_names="gene_symbols",  # use gene symbols for the variable names (variables-axis index)
+        cache=True,  # write a cache file for faster subsequent reading
+        )
+        return adata
+    except:
+        adata = sc.read_mtx(f'{workspace_path}/matrix.mtx')
+        adata_bc=pd.read_csv(f'{workspace_path}/barcodes.tsv',header=None)
+        adata_features=pd.read_csv(f'{workspace_path}/features.tsv',header=None)
+        adata= adata.T
+        adata.obs['cell_id']= adata_bc
+        adata.var['gene_name']= adata_features[0].tolist()
+        adata.var.index= adata.var['gene_name']
+
+        return adata
+
 
 def calculate_qc_metrics(mt: str):
     global adata
