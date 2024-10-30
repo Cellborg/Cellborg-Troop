@@ -2,7 +2,7 @@ import requests
 import boto3
 import json
 import os
-
+import time
 client = boto3.client('sqs', region_name='us-west-2')
 sns = boto3.client('sns', region_name='us-west-2')
 queue_url = os.environ.get("SQS_QUEUE_URL")
@@ -77,6 +77,7 @@ while True:
                     "mt": species_mt
                 }            
                 print("Sending QC request...",qc_request)
+                time.sleep(10)
                 response = send_request('/qc_pre_plot_endpoint', qc_request)
                 print(response)
                 if response['success']:
