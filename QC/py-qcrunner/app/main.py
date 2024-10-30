@@ -700,6 +700,6 @@ async def shutdown():
     os.kill(os.getpid(), signal.SIGTERM)
     return Response(status_code=200, content='Server shutting down...')
 
-@app.post("/health", status_code = 200)
+@app.get("/health", status_code = 200)
 async def health():
     return {"status": "ok"}
