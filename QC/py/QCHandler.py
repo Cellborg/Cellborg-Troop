@@ -77,7 +77,7 @@ while True:
                     "mt": species_mt
                 }            
                 print("Sending QC request...",qc_request)
-                time.sleep(10)
+                time.sleep(5)
                 response = send_request('/qc_pre_plot_endpoint', qc_request)
                 print(response)
                 if response['success']:
