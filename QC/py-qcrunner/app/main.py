@@ -333,6 +333,7 @@ def nearest_neighbor_graph():
 def clustering(s3_path, resolution):
     global adata
     global resolution_global
+    global s3_plots_dir
 
 # ## Clustering
 # 
@@ -341,7 +342,30 @@ def clustering(s3_path, resolution):
 # Using the igraph implementation and a fixed number of iterations can be significantly faster, especially for larger datasets
     print("------- clustering begins --------")
     sc.tl.leiden(adata, resolution = resolution, flavor="igraph", n_iterations=-1)
-    sc.pl.umap(adata, color=["leiden"], save="2.png")
+    #sc.pl.umap(adata, color=["leiden"], save="2.png")
+
+    # **** creating JSON for clustering ******
+    umap_df = pd.DataFrame(
+    adata.obsm["X_umap"], columns=["UMAP1", "UMAP2"], index=adata.obs.index
+    )
+    umap_df["cluster"] = adata.obs["clusters"]
+
+    umap_dict = umap_df.to_dict(orient="index")
+
+    print('creating umap json file...')
+    with open("umap_clusters.json", "w") as f:
+        json.dump(umap_dict, f)
+
+    #upload umap to s3
+    print('uploading umap json to s3...')
+    umap_path = f"{s3_plots_dir}/QCViolinPlot.json"
+    upload_plot_to_s3(umap_path, 'umap_clusters.json')
+
+    #delete temp file
+
+    print('removing umap json from local...')
+    os.remove('umap_clusters.json')
+
     targetfile=f"{s3_path}/QCclustering.png"
     upload_plot_to_s3(targetfile,"./figures/umap2.png")
     resolution_global = resolution
