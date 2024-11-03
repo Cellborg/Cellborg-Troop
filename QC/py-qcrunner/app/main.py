@@ -489,7 +489,7 @@ async def do_pre_plot_qc(qcreq: QCPrePlotRequest):
 
 @app.post("/qc_doublet_endpoint", status_code=200)
 async def do_doublet_plot_qc(qcreq: QCDoublets):
-    try:
+    #try:
         t1=datetime.now()
         #gate adata
         global adata
@@ -503,6 +503,9 @@ async def do_doublet_plot_qc(qcreq: QCDoublets):
         print_time("[doublet_detection]")
 
         gating_adata(countMx, countMn, geneMx, geneMn, mitoMx, mitoMn)
+
+        print('---adata shape after gating----')
+        print(adata.shape)
         doublet_detection()
 
         #doublet detection
@@ -545,10 +548,10 @@ async def do_doublet_plot_qc(qcreq: QCDoublets):
         return{"success": True,
             "message": "QC Completed Successfully",
             }
-    except Exception as err:
-        print('ERROR: ',err)
-        return{"success": False,
-               "message": str(err)}
+    #except Exception as err:
+    #    print('ERROR: ',err)
+    #    return{"success": False,
+    #           "message": str(err)}
     
 #------------------- Processing & Annotations-----------------
 
