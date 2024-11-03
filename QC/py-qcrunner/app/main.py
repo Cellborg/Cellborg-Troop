@@ -358,7 +358,7 @@ def clustering(s3_path, resolution):
 
     #upload umap to s3
     print('uploading umap json to s3...')
-    umap_path = f"{s3_plots_dir}/QCViolinPlot.json"
+    umap_path = f"{s3_path}/UMAP_Clustering.json"
     upload_plot_to_s3(umap_path, 'umap_clusters.json')
 
     #delete temp file
