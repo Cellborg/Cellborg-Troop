@@ -345,6 +345,8 @@ def clustering(s3_path, resolution):
     #sc.pl.umap(adata, color=["leiden"], save="2.png")
 
     # **** creating JSON for clustering ******
+    print("test X_umap")
+    print(adata.obsm)
     umap_df = pd.DataFrame(
     adata.obsm["X_umap"], columns=["UMAP1", "UMAP2"], index=adata.obs.index
     )
