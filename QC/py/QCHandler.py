@@ -2,7 +2,7 @@ import requests
 import boto3
 import json
 import os
-import time
+
 client = boto3.client('sqs', region_name='us-west-2')
 sns = boto3.client('sns', region_name='us-west-2')
 queue_url = os.environ.get("SQS_QUEUE_URL")
@@ -36,7 +36,7 @@ def send_shutdown_request():
         print("Connection was closed by the server (expected behavior during shutdown).")
     except requests.RequestException as e:
         print(f"An error occurred: {e}")
-MAX_COUNT = 10800
+MAX_COUNT = 1000
 currentCount=0
 while True:
     

@@ -299,26 +299,6 @@ def dimentionality_reduction(s3_path):
     print("----- nearest_neighbor_graph begins -----")
     sc.pp.neighbors(adata)
     # This graph can then be embedded in two dimensions for visualiztion with UMAP (McInnes et al., 2018):
-    adata = sc.tl.umap(adata, key_added = "test", copy=True)
-    # We can now visualize the UMAP according to the `sample`. 
-    sc.pl.umap(
-        adata,
-        # Setting a smaller point size to get prevent overlap
-        size=2,
-        save="1.png"
-    )
-    targetfile=f"{s3_path}/QCnearest_neighbor.png"
-    upload_plot_to_s3(targetfile,"./figures/umap1.png")
-
-
-def nearest_neighbor_graph():
-    global adata
-# ## Nearest neighbor graph constuction and visualization
-# 
-# Let us compute the neighborhood graph of cells using the PCA representation of the data matrix.
-    print("----- nearest_neighbor_graph begins -----")
-    sc.pp.neighbors(adata)
-    # This graph can then be embedded in two dimensions for visualiztion with UMAP (McInnes et al., 2018):
     sc.tl.umap(adata)
     # We can now visualize the UMAP according to the `sample`. 
     sc.pl.umap(
@@ -327,7 +307,7 @@ def nearest_neighbor_graph():
         size=2,
         save="1.png"
     )
-    targetfile=f"{s3_plots_dir}/QCnearest_neighbor.png"
+    targetfile=f"{s3_path}/QCnearest_neighbor.png"
     upload_plot_to_s3(targetfile,"./figures/umap1.png")
 
 def clustering(s3_path, resolution):
