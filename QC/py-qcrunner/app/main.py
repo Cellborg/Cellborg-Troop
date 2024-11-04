@@ -297,7 +297,7 @@ def dimentionality_reduction(s3_path):
     upload_plot_to_s3(s3_key,png_file2)
 
     print("----- nearest_neighbor_graph begins -----")
-    sc.pp.neighbors(adata)
+    sc.pp.neighbors(adata, n_pcs=principle_components)
     # This graph can then be embedded in two dimensions for visualiztion with UMAP (McInnes et al., 2018):
     sc.tl.umap(adata)
     # We can now visualize the UMAP according to the `sample`. 
@@ -345,12 +345,9 @@ def clustering(s3_path, resolution):
     upload_plot_to_s3(umap_path, 'umap_clusters.json')
 
     #delete temp file
-
     print('removing umap json from local...')
     os.remove('umap_clusters.json')
 
-    targetfile=f"{s3_path}/QCclustering.png"
-    upload_plot_to_s3(targetfile,"./figures/umap2.png")
     resolution_global = resolution
     return (
         adata.var_names, adata.obs["leiden"].cat.categories
