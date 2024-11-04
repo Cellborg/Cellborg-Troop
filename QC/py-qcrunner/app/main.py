@@ -330,7 +330,8 @@ def clustering(s3_path, resolution):
     umap_df = pd.DataFrame(
     adata.obsm["X_umap"], columns=["UMAP1", "UMAP2"], index=adata.obs.index
     )
-    umap_df["cluster"] = adata.obs["clusters"]
+    umap_df["cluster"] = adata.obs["leiden"]
+
 
     umap_dict = umap_df.to_dict(orient="index")
 
