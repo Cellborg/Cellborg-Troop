@@ -192,6 +192,21 @@ while True:
                     }
                     response = send_sns(data)
                     print(response)
+                    
+            elif request_type == "gene_expression":
+                print("Beginning gene expression now...")
+                gene_list = queen_service_request['gene_list']
+                response = send_request("/gene_expression", {"user":user, "project":project, "gene_list":gene_list})
+                if response['success']:
+                    print("gene expression completed")
+                    data = {
+                        "user":user,
+                        "project":project,
+                        "stage": "gene_expression"
+                    }
+                    response= send_sns(data)
+                    print(response)
+
             elif request_type == "annotations":
                 print("Beginning annotations now...")
                 anno = queen_service_request['annotations']

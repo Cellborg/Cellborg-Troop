@@ -60,6 +60,11 @@ class clusteringRequest(BaseModel):
     project: str
     resolution: float
 
+class geneRequest(BaseModel):
+    user: str
+    project: str
+    gene_list: list[str]
+
 class annoRequest(BaseModel):
     user: str
     project: str
@@ -463,13 +468,15 @@ async def do_pre_plot_qc(qcreq: QCPrePlotRequest):
                 "message": "QC Pre-Plot Completed Successfully"
                 }
     except Exception as err:
-        print('ERROR: ',err)
-        return {"success": False,
-                "message": str(err)}
+        print('ERROR: ',str(err))
+        return {
+            "success": False,
+            "message": str(err)
+        }
 
 @app.post("/qc_doublet_endpoint", status_code=200)
 async def do_doublet_plot_qc(qcreq: QCDoublets):
-    #try:
+    try:
         t1=datetime.now()
         #gate adata
         global adata
@@ -528,10 +535,12 @@ async def do_doublet_plot_qc(qcreq: QCDoublets):
         return{"success": True,
             "message": "QC Completed Successfully",
             }
-    #except Exception as err:
-    #    print('ERROR: ',err)
-    #    return{"success": False,
-    #           "message": str(err)}
+    except Exception as err:
+        print('ERROR: ',str(err))
+        return {
+            "success": False,
+            "message": str(err)
+        }
     
 #------------------- Processing & Annotations-----------------
 
@@ -574,8 +583,8 @@ async def initialize_project(initReq: initializeProjectRequest):
         }
 
     except Exception as err:
-        print('ERROR: ',err)
-        return { 
+        print('ERROR: ',str(err))
+        return {
             "success": False,
             "message": str(err)
         }
@@ -608,7 +617,7 @@ async def do_clustering(clustReq: clusteringRequest):
 
         clusters = clusters.to_list()
         gene_names = gene_names.to_list()
-        print(f"gene_names: {type(gene_names)}", gene_names)
+        print(f"first 10 gene_names: {type(gene_names)}", gene_names[:10],"...")
         print(f"cluster: {type(clusters)}", clusters)
         return {
             "success": True,
@@ -617,17 +626,50 @@ async def do_clustering(clustReq: clusteringRequest):
             "clusters": clusters
         }
     except Exception as err:
-        print('ERROR: ',err)
+        print('ERROR: ',str(err))
         return {
             "success": False,
             "message": str(err)
         }
-    
+@app.post("/gene_expression", status_code = 200)
+async def gene_expression(geneReq: geneRequest):
+    global adata
+    try:
+        gene_list = geneReq.gene_list
+        print('----Starting Gene Expression----')
+        gene_mask = adata.var_names.isin(gene_list)
+        selected_genes = adata.var_names[gene_mask]
+        expression_df = pd.DataFrame(
+        adata[:, gene_mask].X.toarray(),  # Convert to dense matrix if needed
+        columns=selected_genes,
+        index=adata.obs.index
+        )
+
+        expression_df["cluster"] = adata.obs["leiden"]
+        expression_dict = expression_df.to_dict(orient="index")
+
+        print("saving gene expression to local...")
+        with open("gene_expression_per_cell_with_clusters.json", "w") as f:
+            json.dump(expression_dict, f)
+        
+        s3_path = f"{geneReq.user}/{geneReq.project}"
+
+        upload_plot_to_s3(f"{s3_path}/gene_expression.json","gene_expression_per_cell_with_clusters.json")
+        print("uploaded gene expression json to s3")
+
+        print("----removing temp file")
+        os.remove("gene_expression_per_cell_with_clusters.json")
+    except Exception as err:
+        print('ERROR: ',str(err))
+        return {
+            "success": False,
+            "message": str(err)
+        }
 @app.post("/annotations", status_code = 200)
 async def annotations(annotateRequest: annoRequest):
     global adata
     try:
-        print("------Starting annotations")
+        print("------Starting annotations------")
         #annotations_dict = {str(i): annotateRequest.annotations[i] for i in range(len(annotateRequest.annotations))}
         cell_type_annotation(annotateRequest.annotations)
         #used to verify that annotations did work
@@ -645,7 +687,7 @@ async def annotations(annotateRequest: annoRequest):
             "message":"Annotatons successfully completed"
         }
     except Exception as err:
-        print('ERROR: ',err)
+        print('ERROR: ',str(err))
         return{
             "success":False,
             "message": str(err)
