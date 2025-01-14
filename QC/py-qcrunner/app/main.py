@@ -121,7 +121,7 @@ def read_10x_mtx():
         adata = sc.read_10x_mtx(
         workspace_path,  # the directory with the `.mtx` file
         var_names="gene_symbols",  # use gene symbols for the variable names (variables-axis index)
-        cache=True,  # write a cache file for faster subsequent reading
+        cache=False,  # write a cache file for faster subsequent reading
         )
         return adata
     except:
@@ -246,7 +246,7 @@ def reassess_qc_and_filtering():
         adata,
         color=["leiden", "predicted_doublet", "doublet_score"],
         # increase horizontal space between panels
-        wspace=0.5,
+        wspace=0.5, 
         size=3,
         save="3.png"
     )
