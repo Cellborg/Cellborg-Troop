@@ -1,13 +1,12 @@
 import signal
 from fastapi import FastAPI, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 import os
 import boto3
 import scanpy as sc
 import anndata as ad
 import pandas as pd
-import hdf5plugin
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 
 app = FastAPI()
@@ -51,20 +50,7 @@ class QCResponse(BaseModel):
     cell_count: int
     gene_count: int
 
-class initializeProjectRequest(BaseModel):
-    user:str
-    project: str
-    datasets: list[str]
 
-class clusteringRequest(BaseModel):
-    user: str
-    project: str
-    resolution: float
-
-class annoRequest(BaseModel):
-    user: str
-    project: str
-    annotations: object
 
 # variables in Global context
 user_environment = {}
@@ -108,6 +94,7 @@ def set_user_env():
 # TODO: change /tmp to something else as this might cause problems.
 
 def load_dataset(qcreq):
+    global workspace_path
     # Load dataset and create Seurat object
     print("Loading dataset and creating Seurat object")
     prefix = f"{qcreq.user}/{qcreq.project}/{qcreq.dataset}/"
@@ -129,12 +116,25 @@ def load_dataset(qcreq):
 
 # load dataset files create AnnData object
 def read_10x_mtx():
-    adata = sc.read_10x_mtx(
-    workspace_path,  # the directory with the `.mtx` file
-    var_names="gene_symbols",  # use gene symbols for the variable names (variables-axis index)
-    cache=True,  # write a cache file for faster subsequent reading
-    )
-    return adata
+    global workspace_path
+    try:
+        adata = sc.read_10x_mtx(
+        workspace_path,  # the directory with the `.mtx` file
+        var_names="gene_symbols",  # use gene symbols for the variable names (variables-axis index)
+        cache=False,  # write a cache file for faster subsequent reading
+        )
+        return adata
+    except:
+        adata = sc.read_mtx(f'{workspace_path}/matrix.mtx')
+        adata_bc=pd.read_csv(f'{workspace_path}/barcodes.tsv',header=None)
+        adata_features=pd.read_csv(f'{workspace_path}/features.tsv',header=None, delimiter = '\t')
+        adata= adata.T
+        adata.obs['cell_id']= adata_bc
+        adata.var['gene_name'] = adata_features[1].values
+        adata.var.index= adata.var['gene_name']
+
+        return adata
+
 
 def calculate_qc_metrics(mt: str):
     global adata
@@ -165,19 +165,41 @@ def voilin_plot():
     # * the percentage of counts in mitochondrial genes
     # saves violin image file as violin.png, copy this to S3 under plots folder.
     print("------ voilin_plot begins -------")
-    sc.pl.violin(
-        adata,
-        ["n_genes_by_counts", "total_counts", "pct_counts_mt"],
-        jitter=0.4,
-        multi_panel=True,
-        save=".png",
-    )
 
-    png_file = "./figures/violin.png"
+    print("Creating violin df")
+    print(adata.obs.columns)
+    data_df = adata.obs[["n_genes_by_counts", "total_counts", "pct_counts_mt"]]
+
+    print("Creating violin json")
+    data_for_highcharts = {
+        index:{
+                "n_genes":row['n_genes_by_counts'],
+                "total_counts": row["total_counts"],
+                "pct_counts_mt":row["pct_counts_mt"]
+        }
+        for index, row in data_df.iterrows()
+    }
+    print("uploading json file")
+    with open("highcharts_data.json", "w") as f:
+        json.dump(data_for_highcharts, f, indent=4)
+    upload_plot_to_s3(f"{s3_plots_dir}/QCViolinPlot.json", "highcharts_data.json")
+
+    print("removing temp json file")
+    os.remove("highcharts_data.json")
+
+    #sc.pl.violin(
+    #    adata,
+    #    ["n_genes_by_counts", "total_counts", "pct_counts_mt"],
+    #    jitter=0.4,
+    #    multi_panel=True,
+    #    save=".png",
+    #)
+
+    #png_file = "./figures/violin.png"
 
     # Create S3 object key for quality control data
-    s3_key = f"{s3_plots_dir}/QcViolinPlot.png"
-    upload_plot_to_s3(s3_key,png_file)
+    #s3_key = f"{s3_plots_dir}/QcViolinPlot.png"
+    #upload_plot_to_s3(s3_key,png_file)
 
 def scatter_plot():
     global adata
@@ -203,116 +225,6 @@ def doublet_detection():
     sc.pp.scrublet(adata)
     print("------doublet detection is finished------")
 
-def normalize():
-    global adata
-    print("-----normalize begins----")
-    # Normalizing to median total counts
-    sc.pp.normalize_total(adata)
-    # Logarithmize the data
-    sc.pp.log1p(adata)
-    print ("----normalize completed-----")
-
-def feature_selection():
-    global adata
-    # ## Feature selection
-    # 
-    # As a next step, we want to reduce the dimensionality of the dataset and only include the most informative genes. This step is commonly known as feature selection. The scanpy function `pp.highly_variable_genes` annotates highly variable genes by reproducing the implementations of Seurat {cite}`Satija2015`, Cell Ranger {cite}`Zheng2017`, and Seurat v3 {cite}`stuart2019comprehensive` depending on the chosen `flavor`. 
-    print("-------- feature selection begins --------")
-    sc.pp.highly_variable_genes(adata, n_top_genes=2000)
-    sc.pl.highly_variable_genes(adata)
-
-def dimentionality_reduction(s3_path):
-    global adata
-    global principle_components
-    # ## Dimensionality Reduction
-    # Reduce the dimensionality of the data by running principal component analysis (PCA), which reveals the main axes of variation and denoises the data.
-    print("------- dimentionality reduction begins ------")
-    sc.tl.pca(adata)
-
-    #find ideal number of principle components
-    df = adata.uns["pca"]['variance_ratio'].cumsum(axis=0)
-    if df[-1] < 0.95:
-        print("use 50")
-    else:
-        for num in range(len(df)):
-            if df[num] >=0.95:
-                principle_components = num+1
-                break
-                
-    # Let us inspect the contribution of single PCs to the total variance in the data. This gives us information about how many PCs we should consider in order to compute the neighborhood relations of cells, e.g. used in the clustering function {func}`~scanpy.tl.leiden` or {func}`~scanpy.tl.tsne`. In our experience, there does not seem to be signifigant downside to overestimating the numer of principal components.
-    sc.pl.pca_variance_ratio(adata, n_pcs=principle_components, log=True, save=".png")
-    png_file1 = "./figures/pca_variance_ratio.png"
-        # Create S3 object key for quality control data
-    s3_key = f"{s3_path}/QCpca_variance_ratio.png"
-    upload_plot_to_s3(s3_key,png_file1)
-    
-    # You can also plot the principal components to see if there are any potentially undesired features (e.g. batch, QC metrics) driving signifigant variation in this dataset. In this case, there isn't anything too alarming, but it's a good idea to explore this.
-    sc.pl.pca(
-        adata,
-        color=["pct_counts_mt", "pct_counts_mt"],
-        dimensions=[(0, 1), (1, 2)],
-        ncols=2,
-        size=2,
-        save=".png",
-    )
-    # upload plots to s3
-    png_file2 = "./figures/pca.png"
-    # Create S3 object key for quality control data
-    s3_key = f"{s3_path}/QCpca.png"
-    upload_plot_to_s3(s3_key,png_file2)
-
-    print("----- nearest_neighbor_graph begins -----")
-    sc.pp.neighbors(adata)
-    # This graph can then be embedded in two dimensions for visualiztion with UMAP (McInnes et al., 2018):
-    adata = sc.tl.umap(adata, key_added = "test", copy=True)
-    # We can now visualize the UMAP according to the `sample`. 
-    sc.pl.umap(
-        adata,
-        # Setting a smaller point size to get prevent overlap
-        size=2,
-        save="1.png"
-    )
-    targetfile=f"{s3_path}/QCnearest_neighbor.png"
-    upload_plot_to_s3(targetfile,"./figures/umap1.png")
-
-
-def nearest_neighbor_graph():
-    global adata
-# ## Nearest neighbor graph constuction and visualization
-# 
-# Let us compute the neighborhood graph of cells using the PCA representation of the data matrix.
-    print("----- nearest_neighbor_graph begins -----")
-    sc.pp.neighbors(adata)
-    # This graph can then be embedded in two dimensions for visualiztion with UMAP (McInnes et al., 2018):
-    sc.tl.umap(adata)
-    # We can now visualize the UMAP according to the `sample`. 
-    sc.pl.umap(
-        adata,
-        # Setting a smaller point size to get prevent overlap
-        size=2,
-        save="1.png"
-    )
-    targetfile=f"{s3_plots_dir}/QCnearest_neighbor.png"
-    upload_plot_to_s3(targetfile,"./figures/umap1.png")
-
-def clustering(s3_path, resolution):
-    global adata
-    global resolution_global
-
-# ## Clustering
-# 
-# As with Seurat and many other frameworks, we recommend the Leiden graph-clustering method (community detection based on optimizing modularity) {cite}`traag2019louvain`. Note that Leiden clustering directly clusters the neighborhood graph of cells, which we already computed in the previous section.
-
-# Using the igraph implementation and a fixed number of iterations can be significantly faster, especially for larger datasets
-    print("------- clustering begins --------")
-    sc.tl.leiden(adata, resolution = resolution, flavor="igraph", n_iterations=-1)
-    sc.pl.umap(adata, color=["leiden"], save="2.png")
-    targetfile=f"{s3_path}/QCclustering.png"
-    upload_plot_to_s3(targetfile,"./figures/umap2.png")
-    resolution_global = resolution
-    return (
-        adata.var_names, adata.obs["leiden"].cat.categories
-    )
 
 
 def gating_adata(countMx, countMn, geneMx, geneMn, mitoMx, mitoMn):
@@ -334,7 +246,7 @@ def reassess_qc_and_filtering():
         adata,
         color=["leiden", "predicted_doublet", "doublet_score"],
         # increase horizontal space between panels
-        wspace=0.5,
+        wspace=0.5, 
         size=3,
         save="3.png"
     )
@@ -351,11 +263,6 @@ def reassess_qc_and_filtering():
     targetfile=f"{s3_plots_dir}/QCre-assess-cell-filtering.png"
     upload_plot_to_s3(targetfile,"./figures/umap4.png")
 
-def cell_type_annotation(annotations):
-    global adata
-    global resolution_global
-
-    adata.obs["cell_type_lvl1"] = adata.obs["leiden"].map(annotations)
 
 
 
@@ -369,32 +276,6 @@ def print_time(msg):
     date_time = time_now.strftime("%m/%d/%Y, %H:%M:%S")
     print("===%s: %s" % (msg, time_now))
 
-def initializeAdata(s3_singlets_path: str, datasets: list[str]):
-    global adata
-    global user_environment
-
-    samples={datasetId:s3_singlets_path+f"/{datasetId}/singlets.h5ad" for datasetId in datasets} 
-    adatas={}
-    for sample_id, filepath in samples.items():
-        s3.download_file(
-            Bucket = user_environment["qc_dataset_bucket"], 
-            Key = filepath, 
-            Filename= 'singlets.h5ad') 
-        sample_adata = sc.read_h5ad("singlets.h5ad")
-        adatas[sample_id] = sample_adata
-        os.remove('singlets.h5ad')
-        print("removed file from local")
-        #response = s3.get_object(Bucket= user_environment["qc_dataset_bucket"], Key=filepath)
-        #print(f"Pulled {sample_id} from s3: ")
-        #file_pulled = response['Body'].read()
-        #print(file_pulled)
-        #print(type(file_pulled))
-        #sample_adata = sc.read_h5ad(file_pulled)
-        #sample_adata.var_names_make_unique()
-        #adatas[sample_id] = sample_adata
-    
-    adata = ad.concat(adatas, label="sample")
-    adata.obs_names_make_unique()
 
 #----- main -------
 app = FastAPI()
@@ -424,9 +305,11 @@ async def do_pre_plot_qc(qcreq: QCPrePlotRequest):
                 "message": "QC Pre-Plot Completed Successfully"
                 }
     except Exception as err:
-        print('ERROR: ',err)
-        return {"success": False,
-                "message": err}
+        print('ERROR: ',str(err))
+        return {
+            "success": False,
+            "message": str(err)
+        }
 
 @app.post("/qc_doublet_endpoint", status_code=200)
 async def do_doublet_plot_qc(qcreq: QCDoublets):
@@ -444,6 +327,9 @@ async def do_doublet_plot_qc(qcreq: QCDoublets):
         print_time("[doublet_detection]")
 
         gating_adata(countMx, countMn, geneMx, geneMn, mitoMx, mitoMn)
+
+        print('---adata shape after gating----')
+        print(adata.shape)
         doublet_detection()
 
         #doublet detection
@@ -487,127 +373,11 @@ async def do_doublet_plot_qc(qcreq: QCDoublets):
             "message": "QC Completed Successfully",
             }
     except Exception as err:
-        print('ERROR: ',err)
-        return{"success": False,
-               "message": err}
-    
-#------------------- Processing & Annotations-----------------
-
-@app.post("/init_endpoint", status_code=200)
-async def initialize_project(initReq: initializeProjectRequest):
-    try:
-        global adata
-        global user_environment
-        global principle_components
-
-        s3_path = f"{initReq.user}/{initReq.project}"
-        set_user_env()
-        initializeAdata(s3_path, initReq.datasets)
-        print('Successfully concatonated all datasets')
-        normalize()
-        print('Successfully normalized concatonated dataset')
-        feature_selection()
-        print('Successfully selected features')
-        dimentionality_reduction(s3_path)
-        print('Successfully reduced dimensions')
-        
-        #create project_values.json in proj dir
-        numpcs = {
-            "num_pcs":principle_components
-        }
-        with open("project_values.json", "w") as outputfile:
-            json.dump(numpcs, outputfile)
-        print("created project_values.json file")
-
-        input_var_path = f"{initReq.user}/{initReq.project}/project_values.json"
-        upload_plot_to_s3(input_var_path, 'project_values.json')
-        print("uploaded project_values.json file to s3")
-
-        os.remove("project_values.json")
-        print("project_values.json file successfully deleted")
-
-        return{
-            "success": True,
-            "message": "ProcAnno successfully initialized"
-        }
-
-    except Exception as err:
-        print('ERROR: ',err)
-        return { 
-            "success": False,
-            "message": err
-        }
-    
-@app.post("/clustering", status_code=200)
-async def do_clustering(clustReq: clusteringRequest):
-    try:
-        s3_path = f"{clustReq.user}/{clustReq.project}"
-        gene_names, clusters = clustering(s3_path, clustReq.resolution)
-
-        #download old project_values file from s3
-        s3.download_file(
-            Bucket = user_environment["qc_dataset_bucket"], 
-            Key = s3_path+'/project_values.json', 
-            Filename= 'project_values.json') 
-
-        #add clustering resolution
-        with open('project_values.json', "r+") as f:
-            data = json.load(f)
-            data['clust_resolution'] = clustReq.resolution
-            json.dump(data, f)
-        print("Added clustering resolution to project values")
-        
-        #upload updated file to s3
-        upload_plot_to_s3(f"{s3_path}/project_values.json",'project_values.json')
-        print("uploaded new project values to s3")
-        
-        #remove temp file locally
-        os.remove("project_values.json")
-
-        clusters = clusters.to_list()
-        gene_names = gene_names.to_list()
-        print(f"gene_names: {type(gene_names)}", gene_names)
-        print(f"cluster: {type(clusters)}", clusters)
-        return {
-            "success": True,
-            "message": "Clustering successfully finished",
-            "gene_names": gene_names,
-            "clusters": clusters
-        }
-    except Exception as err:
-        print('ERROR: ',err)
+        print('ERROR: ',str(err))
         return {
             "success": False,
-            "message": err
+            "message": str(err)
         }
-    
-@app.post("/annotations", status_code = 200)
-async def annotations(annotateRequest: annoRequest):
-    global adata
-    #try:
-    print("------Starting annotations")
-    #annotations_dict = {str(i): annotateRequest.annotations[i] for i in range(len(annotateRequest.annotations))}
-    cell_type_annotation(annotateRequest.annotations)
-    #used to verify that annotations did work
-    print("creating test png")
-    sc.pl.umap(
-    adata,
-    color=["cell_type_lvl1"],
-    legend_loc="on data",
-    save = "annotations_test.png"
-    )
-    print("uploading test png")
-    upload_plot_to_s3(f"{annotateRequest.user}/{annotateRequest.project}/annotations_test.png", "./figures/umapannotations_test.png")
-    return{
-        "success":True,
-        "message":"Annotatons successfully completed"
-    }
-    #except Exception as err:
-    #    print('ERROR: ',err)
-    #    return{
-    #        "success":False,
-    #        "message": err
-    #    }
 
 #@app.post("/qc_finish_doublet_endpoint", status_code = 200)
 #async def finish_doublet(qcreq: QCFinish):
@@ -628,39 +398,13 @@ async def annotations(annotateRequest: annoRequest):
 #    except Exception as err:
 #        print(err)
 #        return{"success": False,
-#               "message": err}
-
-
-#@app.post("/qc_endpoint", status_code=200)
-#async def do_qc(qcreq: QCRequest):
-#    global adata
-#    global s3_plots_dir
-#
-#    s3_plots_dir = f"{qcreq.user}/{qcreq.project}/{qcreq.dataset}/plots"
-#    set_user_env()
-#    load_dataset(qcreq)
-#    adata = read_10x_mtx()
-#    calculate_qc_metrics(qcreq.mt)
-#    voilin_plot()
-#    scatter_plot()
-#
-#   #doublets
-#    doublet_detection()
-#    #everything below this needs to be in analysis
-#    normalize()
-#    feature_selection()
-#    dimentionality_reduction()
-#    nearest_neighbor_graph()
-#    clustering()
-#    reassess_qc_and_filtering()
-#    cell_type_annotation()
-#    return {"success":       "TRUE", 
-#            "message":      "QC Completed Successfully",
-#            "cell_count":   adata.n_obs,
-#            "gene_count":   adata.n_vars
-#    }
+#               "message": str(err)}
 
 @app.post("/shutdown")
 async def shutdown():
     os.kill(os.getpid(), signal.SIGTERM)
     return Response(status_code=200, content='Server shutting down...')
+
+@app.get("/health", status_code = 200)
+async def health():
+    return {"status": "ok"}
